@@ -1,3 +1,8 @@
+"""
+This file is copied and modified based on the file HP_Lattice_2D.py in Sandipan Mohanty's GitHub repo, found at:
+https://github.com/sandipan-mohanty/DWaveHPLatticeProteins
+"""
+
 #!/usr/bin/env python
 import numpy as np
 import matplotlib.pyplot as plt
