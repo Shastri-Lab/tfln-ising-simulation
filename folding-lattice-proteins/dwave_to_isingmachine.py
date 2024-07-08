@@ -64,6 +64,7 @@ def save_qubo_model_to_ising_mat(hp_qubo_model, filename):
         'L': L,
         'N': N,
         'M': M,
+        'keys': list(sorted(set(idx_vector))),
         'sequence': hp_qubo_model.sequence
     })
 
