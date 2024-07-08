@@ -30,6 +30,13 @@
       "min_energy": -4
     },
     {
+      "name": "S10",
+      "sequence": "HPPHPPHPPH",
+      "min_energy": -4,
+      "latdim": [4, 3],
+      "lambdas": [2.1, 2.4, 3.0]
+    },
+    {
       "name": "S14",
       "sequence": "HHHPPPHPPHPPPH",
       "min_energy": -5
