@@ -49,7 +49,7 @@ def h_dict_to_mat(h_dict, idx_vector):
         h[i] = h_dict[idx]
     return h
 
-def save_qubo_model_to_ising_mat(hp_qubo_model, filename):
+def save_qubo_model_to_ising_mat(hp_qubo_model, filename, target_energy=0.0):
     Q_qubo = hp_qubo_model.interaction_matrix()
     h_ising, J_ising, offset_ising = qubo_to_ising(Q_qubo)
     L = len(hp_qubo_model.sequence)
@@ -65,7 +65,8 @@ def save_qubo_model_to_ising_mat(hp_qubo_model, filename):
         'N': N,
         'M': M,
         'keys': idx_vector,
-        'sequence': hp_qubo_model.sequence
+        'sequence': hp_qubo_model.sequence,
+        'target_energy': target_energy,
     })
 
 

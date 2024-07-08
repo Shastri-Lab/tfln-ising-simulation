@@ -1,0 +1,112 @@
+[
+    {
+      "name": "S4",
+      "sequence": "HPPH",
+      "min_energy": -1
+    },
+    {
+      "name": "S6",
+      "sequence": "HPPHPH",
+      "min_energy": -2
+    },
+    {
+      "name": "S7",
+      "sequence": "PHPPHPH",
+      "min_energy": -2
+    },
+    {
+      "name": "S8",
+      "sequence": "HPHPHPPH",
+      "min_energy": -3
+    },
+    {
+      "name": "S9",
+      "sequence": "HHPPHPPHP",
+      "min_energy": -3
+    },
+    {
+      "name": "S10",
+      "sequence": "HPPHPPHPPH",
+      "min_energy": -4
+    },
+    {
+      "name": "S14",
+      "sequence": "HHHPPPHPPHPPPH",
+      "min_energy": -5
+    },
+    {
+      "name": "S18",
+      "sequence": "HHHPPHPPHPHPPHPHPH",
+      "min_energy": -9
+    },
+    {
+      "name": "S19",
+      "sequence": "PHPHPHPPHPHPPHPPHHH",
+      "min_energy": -9
+    },
+    {
+      "name": "S20",
+      "sequence": "HPHPHPPHPHPPHPPPPHHH",
+      "min_energy": -9
+    },
+    {
+      "name": "S21",
+      "sequence": "PHHPPHPHPPHPHPPHPPHHH",
+      "min_energy": -10
+    },
+    {
+      "name": "S22",
+      "sequence": "HPPHPPHPHPPHPHPPHPPHHH",
+      "min_energy": -11
+    },
+    {
+      "name": "S23",
+      "sequence": "PPHHHHPPHPPHPHPPHPHPPHP",
+      "min_energy": -10
+    },
+    {
+      "name": "S24",
+      "sequence": "HPPPPHPPHPHPPHPHPPHPPHHH",
+      "min_energy": -11
+    },
+    {
+      "name": "S25",
+      "sequence": "PHPHPHPHPPHPHPHPPHPPHHHHH",
+      "min_energy": -13
+    },
+    {
+      "name": "S26",
+      "sequence": "HHHHPPHHPPHPHPPHPHPPHHPPHH",
+      "min_energy": -14
+    },
+    {
+      "name": "S27",
+      "sequence": "PHPHPHPHPPHPHPHPPHPPPPHHHHH",
+      "min_energy": -13
+    },
+    {
+      "name": "S28",
+      "sequence": "PPHHHPPHPPHPHPHPPHPHPPHPPHHH",
+      "min_energy": -13
+    },
+    {
+      "name": "S29",
+      "sequence": "PHPHPHPPHHPPHPHPPHPPHHHHPPHHH",
+      "min_energy": -15
+    },
+    {
+      "name": "S30",
+      "sequence": "PPHHHHPPHPPHPHPPHHPPHPHPHPPHHH",
+      "min_energy": -15
+    },
+    {
+      "name": "S48",
+      "sequence": "PPHPPHHPPHHPPPPPHHHHHHHHHHPPPPPPHHPPHHPPHPPHHHHH",
+      "min_energy": -23
+    },
+    {
+      "name": "S64",
+      "sequence": "HHHHHHHHHHHHPHPHPPHHPPHHPPHPPHHPPHHPPHPPHHPPHHPPHPHPHHHHHHHHHHHHH",
+      "min_energy": -42
+    }
+  ]
