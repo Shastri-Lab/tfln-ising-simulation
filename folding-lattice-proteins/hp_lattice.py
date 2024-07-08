@@ -163,7 +163,7 @@ class Lattice_HP_QUBO:
     def interaction_matrix(self):
         return self.Q
 
-    def print_energies(self, bits):
+    def get_energies(self, bits):
         qhp = 0.
         q1 = self.Lambda[0] * self.len_of_seq
         q2 = 0. 
@@ -179,9 +179,16 @@ class Lattice_HP_QUBO:
                 q1 += self.Q1[(self.keys[i], self.keys[j])]
                 q2 += self.Q2[(self.keys[i], self.keys[j])]
                 q3 += self.Q3[(self.keys[i], self.keys[j])]
+        return qhp, q1, q2, q3
+
+    def print_energies(self, bits):
+        qhp, q1, q2, q3 = self.get_energies(bits)
         print(f"EHP = {qhp}, E1 = {q1}, E2 = {q2}, E3 = {q3}, E = {qhp + q1 + q2 + q3}")
 
-    def show_lattice(self, qubobitstring):
+    def show_lattice(self, qubobitstring, axes=None):
+        if axes is None:
+            fig, axes = plt.subplots(1, 1, figsize=(8, 8))
+
         latdim = self.dim
         image = np.zeros(latdim)
         for i in range(latdim[0]):
@@ -194,9 +201,9 @@ class Lattice_HP_QUBO:
         hp_cmap = ListedColormap(hpcolors, name="hp_cmap")
         row_labels = range(latdim[0])
         col_labels = range(latdim[1])
-        plt.matshow(image, cmap = lat_cmap)
-        plt.xticks(range(latdim[1]), col_labels)
-        plt.yticks(range(latdim[0]), row_labels)
+        axes.matshow(image, cmap = lat_cmap)
+        axes.set_xticks(range(latdim[1]), col_labels)
+        axes.set_yticks(range(latdim[0]), row_labels)
     
         xpos = np.zeros(len(self.sequence))
         ypos = np.zeros(len(self.sequence))
@@ -215,9 +222,7 @@ class Lattice_HP_QUBO:
                 xstart.append(s[0])
                 ystart.append(s[1])
                 cstart.append(self.sequence[f])
-        plt.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap)
-        plt.plot(xpos, ypos)
-        plt.scatter(xstart, ystart, s=25, marker=5)
-        plt.show()
-
+        axes.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap)
+        axes.plot(xpos, ypos)
+        axes.scatter(xstart, ystart, s=25, marker=5)
 
