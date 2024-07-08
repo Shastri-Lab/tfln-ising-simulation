@@ -5,6 +5,12 @@
       "min_energy": -1
     },
     {
+      "name": "S4",
+      "sequence": "HPPH",
+      "min_energy": -1,
+      "latdim": [3,3]
+    },
+    {
       "name": "S6",
       "sequence": "HPPHPH",
       "min_energy": -2
