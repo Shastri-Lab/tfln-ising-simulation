@@ -3,7 +3,6 @@ from math import ceil, floor
 from dimod.utilities import qubo_to_ising
 from dwave.samplers import SimulatedAnnealingSampler
 from dwave_to_isingmachine import (
-    get_idx_vector,
     flatten_spin_matrix,
     vector_to_spin_matrix,
     J_dict_to_mat,
@@ -36,7 +35,7 @@ def setup_hp_isingmachine(seq, latdim=None, savemat=False):
     print("Converting QUBO to Ising model...")
     h_dict, J_dict, offset_ising = qubo_to_ising(Q)
 
-    idx_vector = get_idx_vector(seq_len, lattice_size_y, lattice_size_x)
+    idx_vector = model.keys
     h = h_dict_to_mat(h_dict, idx_vector)
     J = J_dict_to_mat(J_dict, idx_vector)
     

@@ -4,19 +4,6 @@ import numpy as np
 from collections import defaultdict
 from dimod.utilities import qubo_to_ising
 
-def get_idx_vector(L, N, M):
-    num_sites = N*M
-    idx_vector = []
-    for f in range(L):
-        for s in range(0, num_sites):
-            x_idx = s % M
-            y_idx = s // M
-            lattice_parity = (x_idx%2 + y_idx%2) % 2
-            if lattice_parity != f%2: # skip if the lattice site is not of the same parity as the spin
-                continue
-            idx_vector.append(((x_idx, y_idx), f))
-    return idx_vector
-
 def flatten_spin_matrix(spin_matrix, idx_vector):
     spin_vector = []
     for ((x_idx, y_idx), f) in idx_vector:
@@ -37,8 +24,10 @@ def J_dict_to_mat(J_dict, idx_vector):
     num_indices = len(idx_vector)
     J = np.zeros(shape=(num_indices, num_indices))
     for i, idx1 in enumerate(idx_vector):
-        for j, idx2 in enumerate(idx_vector):
-            J[i, j] = J_dict[idx1, idx2]
+        for j in range(i+1, num_indices):
+            idx2 = idx_vector[j]
+            J[i, j] = J_dict.get((idx1, idx2), J_dict.get((idx2, idx1), 0.0))
+            J[j, i] = J[i, j]
     return J
 
 def h_dict_to_mat(h_dict, idx_vector):
@@ -54,9 +43,8 @@ def save_qubo_model_to_ising_mat(hp_qubo_model, filename, target_energy=0.0):
     h_ising, J_ising, offset_ising = qubo_to_ising(Q_qubo)
     L = len(hp_qubo_model.sequence)
     N, M = hp_qubo_model.dim
-    idx_vector = get_idx_vector(L, N, M)
-    h = h_dict_to_mat(h_ising, idx_vector)
-    J = J_dict_to_mat(J_ising, idx_vector)
+    h = h_dict_to_mat(h_ising, hp_qubo_model.keys)
+    J = J_dict_to_mat(J_ising, hp_qubo_model.keys)
     scipy.io.savemat(filename, {
         'h': h,
         'J': J,
@@ -64,7 +52,7 @@ def save_qubo_model_to_ising_mat(hp_qubo_model, filename, target_energy=0.0):
         'L': L,
         'N': N,
         'M': M,
-        'keys': idx_vector,
+        'keys': hp_qubo_model.keys,
         'sequence': hp_qubo_model.sequence,
         'target_energy': target_energy,
     })
