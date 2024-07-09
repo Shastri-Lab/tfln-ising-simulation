@@ -5,11 +5,12 @@ https://github.com/sandipan-mohanty/DWaveHPLatticeProteins
 
 #!/usr/bin/env python
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-from collections import defaultdict
 import networkx as nx
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from collections import defaultdict
+from dimod.utilities import qubo_to_ising
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
 def parity(node):
     return (node[0] % 2 + node[1] % 2) % 2
@@ -109,22 +110,21 @@ def constraint_chain_connectivity(g, strength, sequence_length):
                         QQ[((u, i+1), (v, i))] += strength
     return QQ
 
-
 class Lattice_HP_QUBO:
-    def __init__(self, dim, sequence, Lambda=None):
+    def __init__(self, dim, sequence, name=None, Lambda=None, target_energy=None, is_printing=True):
+        self.name = "X" if name is None else name
         self.dim = dim
+        self.target_energy = target_energy
+        
         if type(sequence) is str:
             self.sequence = from_str(sequence)
         else:
             self.sequence = sequence
-
         self.len_of_seq = len(sequence)
-
         if self.len_of_seq > np.prod(dim):
             raise RuntimeError(f"Lattice too small for sequence of length {self.len_of_seq}")
 
-        # Lambda index 0: unique bead positions, 1: self avoidance 2: chain connectivity
-        if Lambda is None:
+        if Lambda is None: # Lambda index 0: unique bead positions, 1: self avoidance 2: chain connectivity
             self.Lambda = [2.0, 3.0, 3.0]
             if self.len_of_seq >= 40:
                 self.Lambda = [2.0, 3.5, 3.0] # known best values for S48
@@ -153,12 +153,12 @@ class Lattice_HP_QUBO:
             ukeys.append(k[0])
             ukeys.append(k[1])
         self.keys = list(sorted(set(ukeys)))
-        print(f"Sequence (0 = P, 1 = H): {self.sequence}")
-        print(f"Sequence length = {self.len_of_seq}")
-        print(f"Lattice dimensions : {self.dim}")
-        print("Created QBM with bit sequence keys.")
-        print(f"bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys)} connections on average.")
-
+        if is_printing:
+            print(f"Sequence (0 = P, 1 = H): {self.sequence}")
+            print(f"Sequence length = {self.len_of_seq}")
+            print(f"Lattice dimensions : {self.dim}")
+            print("Created QBM with bit sequence keys.")
+            print(f"bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys)} connections on average.")
 
     def interaction_matrix(self):
         return self.Q
@@ -184,6 +184,10 @@ class Lattice_HP_QUBO:
     def print_energies(self, bits):
         qhp, q1, q2, q3 = self.get_energies(bits)
         print(f"EHP = {qhp}, E1 = {q1}, E2 = {q2}, E3 = {q3}, E = {qhp + q1 + q2 + q3}")
+
+    def to_ising(self):
+        h_dict, J_dict, offset_ising = qubo_to_ising(self.interaction_matrix())
+        return h_dict, J_dict, offset_ising
 
     def show_lattice(self, qubobitstring, axes=None):
         if axes is None:

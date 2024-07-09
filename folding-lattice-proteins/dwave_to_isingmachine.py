@@ -38,13 +38,13 @@ def h_dict_to_mat(h_dict, idx_vector):
         h[i] = h_dict[idx]
     return h
 
-def save_qubo_model_to_ising_mat(hp_qubo_model, filename, target_energy=0.0):
-    Q_qubo = hp_qubo_model.interaction_matrix()
+def save_model_for_matlab(model, filename):
+    Q_qubo = model.interaction_matrix()
     h_ising, J_ising, offset_ising = qubo_to_ising(Q_qubo)
-    L = len(hp_qubo_model.sequence)
-    N, M = hp_qubo_model.dim
-    h = h_dict_to_mat(h_ising, hp_qubo_model.keys)
-    J = J_dict_to_mat(J_ising, hp_qubo_model.keys)
+    L = len(model.sequence)
+    N, M = model.dim
+    h = h_dict_to_mat(h_ising, model.keys)
+    J = J_dict_to_mat(J_ising, model.keys)
     scipy.io.savemat(filename, {
         'h': h,
         'J': J,
@@ -52,9 +52,9 @@ def save_qubo_model_to_ising_mat(hp_qubo_model, filename, target_energy=0.0):
         'L': L,
         'N': N,
         'M': M,
-        'keys': hp_qubo_model.keys,
-        'sequence': hp_qubo_model.sequence,
-        'target_energy': target_energy,
+        'keys': model.keys,
+        'sequence': model.sequence,
+        'target_energy': model.target_energy,
     })
 
 
