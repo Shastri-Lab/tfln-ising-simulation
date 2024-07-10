@@ -26,6 +26,15 @@ def from_str(seqstr):
             ans.append(0)
     return ans
 
+def to_str(seq_list):
+    ans = ""
+    for c in seq_list:
+        if c == 1:
+            ans += 'H'
+        else:
+            ans += 'P'
+    return ans
+
 def E_HP_qubo_contribs(g, sequence):
     QQ = defaultdict(float)
     for u, v in g.edges():
@@ -154,11 +163,10 @@ class Lattice_HP_QUBO:
             ukeys.append(k[1])
         self.keys = list(sorted(set(ukeys)))
         if is_printing:
-            print(f"Sequence (0 = P, 1 = H): {self.sequence}")
+            print(f"Sequence: {to_str(self.sequence)}")
             print(f"Sequence length = {self.len_of_seq}")
             print(f"Lattice dimensions : {self.dim}")
-            print("Created QBM with bit sequence keys.")
-            print(f"bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys)} connections on average.")
+            print(f"Bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys):.2f} connections on average.")
 
     def interaction_matrix(self):
         return self.Q
