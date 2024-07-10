@@ -46,13 +46,10 @@ def save_model_for_matlab(model, filename):
     h = h_dict_to_mat(h_ising, model.keys)
     J = J_dict_to_mat(J_ising, model.keys)
     scipy.io.savemat(filename, {
-        'h': h,
-        'J': J,
-        'offset': offset_ising,
-        'L': L,
-        'N': N,
-        'M': M,
+        'h': h, 'J': J,
+        'L': L, 'N': N, 'M': M,
         'keys': model.keys,
+        'offset': offset_ising,
         'sequence': model.sequence,
         'target_energy': model.target_energy,
     })
