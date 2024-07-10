@@ -1,9 +1,12 @@
 import os
 import json
+import numpy as np
+from numpy import pi
 import os.path as path
-from hp_lattice import *
 from math import ceil, floor
+import matplotlib.pyplot as plt
 from dataclasses import dataclass
+from hp_lattice import Lattice_HP_QUBO
 from dwave.samplers import SimulatedAnnealingSampler
 from dwave_to_isingmachine import (
     flatten_spin_matrix,
@@ -15,7 +18,8 @@ from dwave_to_isingmachine import (
 
 ROOT2 = np.sqrt(2)
 def sigma(x):
-    return np.tanh(ROOT2*x) # TODO: do a cos^2 instead of this... this is just more idealized so easier to start with
+    # return np.tanh(ROOT2*x) # TODO: do a cos^2 instead of this... this is just more idealized so easier to start with
+    return -1 + 2*np.cos(pi/4 * (x-1))**2
 
 def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
     with open(path.join(path.dirname(path.abspath(__file__)), 'protein_sequences.json'), 'r') as f:
@@ -38,7 +42,7 @@ def plot_hp_convergence(e_history, qubo_bits, betas, target_energy=None):
     
     iters = list(range(e_history.shape[0]))
     for i, beta in enumerate(betas):
-        ax[0].plot(iters, e_history[:, i], label=f'β = {beta:.1e}')
+        ax[0].plot(iters, e_history[:, i], '.-', lw=0.75, ms=2.0, label=f'β = {beta:.1e}')
     
     ax[0].legend()
     ax[0].set_xlabel('Iteration')
@@ -106,10 +110,8 @@ def solve_hp_isingmachine(model, num_iterations=250_000, betas=0.005, noise_std=
         e_history.append(current_energy)
         
         # break if we are close enough to the target energy
-        # if np.abs(current_energy - target_energy) < 1e-3:
-        #     break
-        # if np.any(np.abs(current_energy - target_energy) < 1e-3):
-        #     break
+        if np.any(np.abs(current_energy - target_energy) < 1e-3):
+            break
 
         # compute the next state of the system
         output = np.einsum('ijk,ik->ij', W, sigma(x_vector))
@@ -122,5 +124,5 @@ def solve_hp_isingmachine(model, num_iterations=250_000, betas=0.005, noise_std=
     plot_hp_convergence(np.array(e_history), qubo_bits, betas, target_energy)
 
 if __name__ == '__main__':
-    model = load_hp_model_by_name('S4', latdim=(3,3))
-    solve_hp_isingmachine(model, num_iterations=100_000, betas=(0.001, 0.005, 0.01, 0.05))
+    model = load_hp_model_by_name('S6', latdim=(3,3))
+    solve_hp_isingmachine(model, num_iterations=100_000, betas=(0.1, 0.3), noise_std=0.05)
