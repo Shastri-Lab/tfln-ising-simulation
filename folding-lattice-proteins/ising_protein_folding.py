@@ -1,9 +1,11 @@
 import os
 import json
+import numba
 import numpy as np
-from numpy import pi
+from tqdm import tqdm
 import os.path as path
 from math import ceil, floor
+from numpy import pi, sin, cos
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from hp_lattice import Lattice_HP_QUBO
@@ -17,10 +19,9 @@ from dwave_to_isingmachine import (
 )
 
 ROOT2 = np.sqrt(2)
-def sigma(x):
-    # return np.tanh(ROOT2*x) # TODO: do a cos^2 instead of this... this is just more idealized so easier to start with
-    return -1 + 2*np.cos(pi/4 * (x-1))**2
-
+def sigma(x): # return np.tanh(ROOT2*x)
+    return sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
+    
 def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
     with open(path.join(path.dirname(path.abspath(__file__)), 'protein_sequences.json'), 'r') as f:
         hp_sequences = json.load(f)
@@ -35,25 +36,32 @@ def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
     return model
 
 def plot_hp_convergence(e_history, qubo_bits, betas, target_energy=None):
+    # e_history has shape (T, B, I)
+    num_ics = e_history.shape[2]
     fig, ax = plt.subplots(1, 2, figsize=(12, 6))
     ax[0].set_title('Ising Energy')
     if target_energy is not None:
-        ax[0].axhline(target_energy, color='r', linestyle='--')
+        ax[0].axhline(target_energy, color='k', linestyle='--')
     
     iters = list(range(e_history.shape[0]))
     for i, beta in enumerate(betas):
-        ax[0].plot(iters, e_history[:, i], '.-', lw=0.75, ms=2.0, label=f'β = {beta:.1e}')
+        if num_ics > 1: 
+            ax[0].fill_between(iters, e_history[:, i, :].min(axis=-1), e_history[:, i, :].max(axis=-1), alpha=0.1, color=f'C{i}')
+        # figure out which one has minimum energy at the last iteration
+        min_energy_beta_idx = np.argmin(e_history[-1, i, :])
+        ax[0].plot(iters, e_history[:, i, min_energy_beta_idx], '.-', lw=0.75, ms=2.0, label=f'β = {beta:.1e}', color=f'C{i}')
     
     ax[0].legend()
     ax[0].set_xlabel('Iteration')
     ax[0].set_ylabel('Energy')
     
-    final_energy = e_history[-1, :]
+    final_energies = e_history[-1, :, :]
     # find index of the minimum energy
-    min_energy_idx = np.argmin(final_energy)
-    min_energy = final_energy[min_energy_idx]
-    min_qubo_bits = qubo_bits[min_energy_idx, :]
-    min_energy_beta = betas[min_energy_idx]
+    min_energy_idx_flat = np.argmin(final_energies)
+    min_energy_idx = np.unravel_index(min_energy_idx_flat, final_energies.shape)
+    min_energy = final_energies[min_energy_idx]
+    min_qubo_bits = qubo_bits[*min_energy_idx, :]
+    min_energy_beta = betas[min_energy_idx[0]]
     
     ax[1].set_title(f'Final Lattice Configuration (β = {min_energy_beta:.1e}, E = {min_energy:.1f})')
     model.show_lattice(min_qubo_bits, axes=ax[1])
@@ -71,16 +79,50 @@ def save_mat_file(model):
         save_model_for_matlab(model, mat_filename)
         print('Done.')
 
-def solve_hp_isingmachine(model, num_iterations=250_000, betas=0.005, noise_std=0.125):
+def print_final_energies(final_energies, betas, target_energy):
+    print(f'Target Energy = {target_energy:.1f}\nFinal Energies:')
+    for i, beta in enumerate(betas):
+        energy = final_energies[i]
+        energy = [round(e, 1) for e in energy]
+        print(f'β = {beta:.1e}: E = {sum(energy):.1f} {energy}')
+
+def save_results(model, e_history, x_vector, betas, noise_std, asym):
+    data_dir = path.join(path.dirname(path.abspath(__file__)), 'results')
+    os.makedirs(data_dir, exist_ok=True) # create the directory if it doesn't exist
+    results_filename = path.join(data_dir, f'{model.name}_{model.dim[1]}x{model.dim[0]}')
+    if asym:
+        results_filename += '_asym'
+    i = 1
+    filename = results_filename + '.npz'
+    while path.exists(filename):
+        filename = f'{results_filename}_{i}.npz'
+        i += 1
+
+    print(f'Saving results to {filename}...', end=' ')
+    np.savez(
+        filename,
+        e_history=e_history,
+        x_vector=x_vector,
+        betas=betas,
+        sequence=model.sequence,
+        target_energy=model.target_energy,
+        lambdas=model.Lambda,
+        noise_std=noise_std,
+        )
+    print('Done.')
+
+
+def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=False):
+    print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     target_energy = model.target_energy
     h_dict, J_dict, ising_e_offset = model.to_ising()
     h = h_dict_to_mat(h_dict, model.keys)
-    J = J_dict_to_mat(J_dict, model.keys)
+    J = J_dict_to_mat(J_dict, model.keys, asymmetric=asymmetric_J)
     save_mat_file(model)
 
-    betas = np.atleast_1d(betas)
-    betas /= np.max(np.abs(J)) # normalize beta by the maximum coupling strength
-    alphas = 1 - betas
+    og_betas = np.atleast_1d(betas)
+    betas = og_betas / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+    alphas = 1 - betas                    # alpha is complement of beta for running average
     
     num_spins = h.shape[0]
     num_betas = betas.shape[0]
@@ -89,40 +131,57 @@ def solve_hp_isingmachine(model, num_iterations=250_000, betas=0.005, noise_std=
     b = np.zeros((num_betas, num_spins))
     for i, (alpha, beta) in enumerate(zip(alphas, betas)):
         W[i, :, :] = alpha * np.eye(num_spins) - beta * J
-        b[i, :] = -beta * h * 0.7
+        b[i, :] = -beta * h #* 0.7
+    b = np.stack([b for _ in range(num_ics)], axis=1)
 
-    x_init = np.random.uniform(-1, 1, num_spins)
-    x_vector = np.vstack([x_init for _ in range(num_betas)])
+    x_init = np.random.uniform(-1, 1, (num_ics, num_spins))
+    x_vector = np.stack([x_init for _ in range(num_betas)]) # use the same initial state for all betas
 
-    x_history = []
+    # x_history = []
     e_history = []
 
-    for t in range(num_iterations):
-        spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
-        qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
-        
-        # compute the energy of the current state
-        energies = np.array([model.get_energies(qubo_bits[i, :]) for i in range(num_betas)])
-        current_energy = np.sum(energies, axis=1)
+    noise = np.random.normal(0, noise_std, (num_ics, num_spins, num_iterations))
+    noise = np.stack([noise for _ in range(num_betas)])
 
-        # record the history
-        x_history.append(x_vector.copy())
-        e_history.append(current_energy)
-        
-        # break if we are close enough to the target energy
-        if np.any(np.abs(current_energy - target_energy) < 1e-3):
-            break
+    print('Running simulation...')
+    try:
+        for t in tqdm(range(num_iterations)):
+            spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
+            qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+            
+            # compute the energy of the current state
+            energies = np.array([[model.get_energies(qubo_bits[i, j, :]) for j in range(num_ics)] for i in range(num_betas)])
+            current_energy = np.sum(energies, axis=-1)
 
-        # compute the next state of the system
-        output = np.einsum('ijk,ik->ij', W, sigma(x_vector))
-        noise = np.random.normal(0, noise_std, num_spins)
-        output += np.vstack([noise for _ in range(num_betas)])
-        output += b
-        x_vector = output
+            # record the history
+            # x_history.append(x_vector.copy())
+            e_history.append(current_energy)
+            
+            # break if we are close enough to the target energy
+            if np.any(np.abs(current_energy - target_energy) < 1e-3):
+                break
 
-    print(f"done. final energy = {energies}")
-    plot_hp_convergence(np.array(e_history), qubo_bits, betas, target_energy)
+            # compute the next state of the system
+            # x_vector = compute_next_state(sigma(x_vector), t)
+            output = np.einsum('ijk,ihk->ihj', W, sigma(x_vector)) # W has shape (B, N, N); x_vector has shape (B, I, N); the output has shape (B, I, N)
+            output += noise[:,:,:,t]
+            output += b
+            x_vector = output
+            x_vector /= np.max(np.abs(x_vector), axis=1, keepdims=True)
+        print(f'Completed {t+1} iterations.')
+    
+    except KeyboardInterrupt:
+        print(f'\nInterrupted at iteration {t}.')
+        pass # allow the user to interrupt the simulation
+
+    #print_final_energies(energies, og_betas, target_energy)
+    e_history = np.array(e_history)
+    plot_hp_convergence(e_history, qubo_bits, og_betas, target_energy)
+    # ask user whether to save the results
+    is_save = input('Save results? (y/N): ')
+    if is_save.lower() == 'y':
+        save_results(model, e_history, x_vector, og_betas, noise_std, asymmetric_J)
 
 if __name__ == '__main__':
-    model = load_hp_model_by_name('S6', latdim=(3,3))
-    solve_hp_isingmachine(model, num_iterations=100_000, betas=(0.1, 0.3), noise_std=0.05)
+    model = load_hp_model_by_name('S24', latdim=(6,6))
+    solve_hp_isingmachine(model, num_iterations=500, num_ics=1000, betas=(0.008, 0.003), noise_std=0.3, asymmetric_J=False)
