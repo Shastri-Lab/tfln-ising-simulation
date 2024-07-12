@@ -138,17 +138,14 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
     b = np.zeros((num_betas, num_spins))
     for i, (alpha, beta) in enumerate(zip(alphas, betas)):
         W[i, :, :] = alpha * np.eye(num_spins) - beta * J
-        b[i, :] = -beta * h #* 0.7
+        b[i, :] = -beta * h
     b = np.stack([b for _ in range(num_ics)], axis=1)
 
     x_init = np.random.uniform(-1, 1, (num_ics, num_spins))
     x_vector = np.stack([x_init for _ in range(num_betas)]) # use the same initial state for all betas
-
-    # x_history = []
-    e_history = []
-
     noise = np.random.normal(0, noise_std, (num_ics, num_spins, num_iterations))
     noise = np.stack([noise for _ in range(num_betas)])
+    output = np.zeros_like(x_vector)
 
     bits_history = []
     e_history = []
@@ -160,8 +157,7 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
             qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
             
             # compute the energy of the current state
-            energies = np.array([[model.get_energies(qubo_bits[i, j, :]) for j in range(num_ics)] for i in range(num_betas)])
-            current_energy = np.sum(energies, axis=-1)
+            current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + ising_e_offset + model.Lambda[0] * model.len_of_seq
 
             # record the history
             bits_history.append(qubo_bits.astype(bool))
@@ -172,12 +168,11 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
                 break
 
             # compute the next state of the system
-            # x_vector = compute_next_state(sigma(x_vector), t)
-            output = np.einsum('ijk,ihk->ihj', W, sigma(x_vector)) # W has shape (B, N, N); x_vector has shape (B, I, N); the output has shape (B, I, N)
-            output += noise[:,:,:,t]
-            output += b
+            np.einsum('ijk,ihk->ihj', W, sigma(x_vector), out=output) # W has shape (B, N, N); x_vector has shape (B, I, N); the output has shape (B, I, N)
+            output += b + noise[:,:,:,t]
             x_vector = output
-            x_vector /= np.max(np.abs(x_vector), axis=1, keepdims=True)
+            # x_vector -= np.mean(x_vector, axis=1, keepdims=True) # subtract the mean
+            x_vector /= np.max(np.abs(x_vector), axis=1, keepdims=True) # upload to AWG
         print(f'Completed {t+1} iterations.')
     
     except KeyboardInterrupt:
