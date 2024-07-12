@@ -43,7 +43,8 @@ def compare_energy_functions(model):
         for j1 in range(number_of_spins):
             for j2 in range(number_of_spins):
                 ising_energies_dict[i] += J_dict[model.keys[j1], model.keys[j2]] * ising_spins[i, j1] * ising_spins[i, j2]
-        ising_energies_dict[i] += h_dict[model.keys[j1]] * ising_spins[i, j1]
+            ising_energies_dict[i] += h_dict[model.keys[j1]] * ising_spins[i, j1]
+        ising_energies_dict[i] += ising_e_offset
 
     # calculate the Ising energy using the Ising Hamiltonian
     ising_energies_sym = np.zeros(number_of_random_configs)
@@ -53,11 +54,13 @@ def compare_energy_functions(model):
     for i in range(number_of_random_configs):
         ising_energies_asym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_asym, ising_spins[i, :]))
 
+    # assert np.allclose(ising_energies_dict, ising_energies_asym)
+
     # compare the QUBO and Ising energies
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    ax.plot(qubo_energies, ising_energies_sym, '.', label='Symmetric')
+    # ax.plot(qubo_energies, ising_energies_sym, '.', label='Symmetric')
     ax.plot(qubo_energies, ising_energies_asym, '.', label='Asymmetric')
-    # ax.plot(qubo_energies, ising_energies_dict, '.', label='Dictionary')
+    ax.plot(qubo_energies, ising_energies_dict, '.', label='Dictionary')
     ax.plot(qubo_energies, qubo_energies, 'k--', label='y=x')
     ax.legend()
     ax.set_xlabel('QUBO Energy')
@@ -74,7 +77,7 @@ def plot_energy_offset():
         ('S30', (7,6)),
         # ('S64', (15,15)),
     ]
-    models = [load_hp_model_by_name(name, latdim) for name, latdim in models]
+    models = [load_hp_model_by_name(name, latdim, lambdas=(2.1, 2.4, 3)) for name, latdim in models]
 
     delta_es = []
     for model in models:
@@ -90,8 +93,14 @@ def plot_energy_offset():
         energy_difference = qubo_energy - ising_energy_asym
         delta_es.append(energy_difference)
 
-    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
+    from scipy.optimize import curve_fit
+    def linear(x, a, b):
+        return a*x + b
     seq_lens = [len(model.sequence) for model in models]
+    popt, pcov = curve_fit(linear, seq_lens, delta_es)
+    print(f'Energy offset = {popt[0]:.1f}*L + {popt[1]:.2f}')
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     ax.plot(seq_lens, delta_es, '.-')
     # put label on each point
     for i, delta_e in enumerate(delta_es):
@@ -103,6 +112,6 @@ def plot_energy_offset():
     plt.show()
 
 if __name__ == '__main__':
-    # model = load_hp_model_by_name('S4', (3,3))
-    # compare_energy_functions(model)
-    plot_energy_offset()
+    model = load_hp_model_by_name('S4', (3,3))
+    compare_energy_functions(model)
+    # plot_energy_offset()

@@ -119,7 +119,7 @@ def save_results(model, e_history, bits_history, x_vector, betas, noise_std, asy
     print('Done.')
 
 
-def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=False, is_plotting=True, is_saving=True):
+def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=True, is_plotting=True, is_saving=True):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     target_energy = model.target_energy
     h_dict, J_dict, ising_e_offset = model.to_ising()
@@ -203,7 +203,7 @@ if __name__ == '__main__':
         num_ics=1000,
         betas=(0.001, 0.002, 0.003, 0.004),
         noise_std=0.185,
-        asymmetric_J=False,
+        asymmetric_J=True,
         is_plotting=True,
         is_saving=False,
         )
