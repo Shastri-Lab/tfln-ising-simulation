@@ -86,7 +86,7 @@ def print_final_energies(final_energies, betas, target_energy):
         energy = [round(e, 1) for e in energy]
         print(f'β = {beta:.1e}: E = {sum(energy):.1f} {energy}')
 
-def save_results(model, e_history, x_vector, betas, noise_std, asym):
+def save_results(model, e_history, bits_history, x_vector, betas, noise_std, asym):
     data_dir = path.join(path.dirname(path.abspath(__file__)), 'results')
     os.makedirs(data_dir, exist_ok=True) # create the directory if it doesn't exist
     results_filename = path.join(data_dir, f'{model.name}_{model.dim[1]}x{model.dim[0]}')
@@ -98,10 +98,17 @@ def save_results(model, e_history, x_vector, betas, noise_std, asym):
         filename = f'{results_filename}_{i}.npz'
         i += 1
 
+    # take every 10th bit to reduce the size of the file
+    # make sure last bits is included
+    bits_history = np.array(bits_history)
+    bits = bits_history[:, :, ::10]
+    bits[:, :, -1] = bits_history[:, :, -1]
+
     print(f'Saving results to {filename}...', end=' ')
     np.savez(
         filename,
         e_history=e_history,
+        bits_history=bits,
         x_vector=x_vector,
         betas=betas,
         sequence=model.sequence,
@@ -112,7 +119,7 @@ def save_results(model, e_history, x_vector, betas, noise_std, asym):
     print('Done.')
 
 
-def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=False):
+def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=False, is_plotting=True, is_saving=True):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     target_energy = model.target_energy
     h_dict, J_dict, ising_e_offset = model.to_ising()
@@ -143,6 +150,9 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
     noise = np.random.normal(0, noise_std, (num_ics, num_spins, num_iterations))
     noise = np.stack([noise for _ in range(num_betas)])
 
+    bits_history = []
+    e_history = []
+
     print('Running simulation...')
     try:
         for t in tqdm(range(num_iterations)):
@@ -154,7 +164,7 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
             current_energy = np.sum(energies, axis=-1)
 
             # record the history
-            # x_history.append(x_vector.copy())
+            bits_history.append(qubo_bits.astype(bool))
             e_history.append(current_energy)
             
             # break if we are close enough to the target energy
@@ -176,12 +186,25 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
 
     #print_final_energies(energies, og_betas, target_energy)
     e_history = np.array(e_history)
-    plot_hp_convergence(e_history, qubo_bits, og_betas, target_energy)
+    if is_plotting:
+        plot_hp_convergence(e_history, qubo_bits, og_betas, target_energy)
     # ask user whether to save the results
-    is_save = input('Save results? (y/N): ')
-    if is_save.lower() == 'y':
-        save_results(model, e_history, x_vector, og_betas, noise_std, asymmetric_J)
+    if is_saving:
+        is_save = input('Save results? (y/N): ')
+        if is_save.lower() == 'y':
+            save_results(model, e_history, bits_history, x_vector, og_betas, noise_std, asymmetric_J)
 
 if __name__ == '__main__':
-    model = load_hp_model_by_name('S24', latdim=(6,6))
-    solve_hp_isingmachine(model, num_iterations=500, num_ics=1000, betas=(0.008, 0.003), noise_std=0.3, asymmetric_J=False)
+    model = load_hp_model_by_name('S6', latdim=(4,3))
+    # solve_hp_isingmachine(model, num_iterations=100, num_ics=10, betas=(0.1, 0.01, 0.08), noise_std=0.09, asymmetric_J=True)
+    solve_hp_isingmachine(
+        model,
+        num_iterations=15_000,
+        num_ics=1000,
+        betas=(0.001, 0.002, 0.003, 0.004),
+        noise_std=0.185,
+        asymmetric_J=False,
+        is_plotting=True,
+        is_saving=False,
+        )
+    
