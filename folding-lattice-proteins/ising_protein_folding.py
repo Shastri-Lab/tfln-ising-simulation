@@ -1,6 +1,8 @@
 import os
 import json
 import numba
+import cProfile
+import pstats
 import numpy as np
 from tqdm import tqdm
 import os.path as path
@@ -75,7 +77,7 @@ def save_mat_file(model):
         with open(mat_filename, 'r') as f:
             pass
     except FileNotFoundError:
-        print(f'Saving model to {mat_filename}...', end=' ')
+        print(f'Saving matrices to {mat_filename}...', end=' ')
         save_model_for_matlab(model, mat_filename)
         print('Done.')
 
@@ -121,19 +123,20 @@ def save_results(model, e_history, bits_history, x_vector, betas, noise_std, asy
 
 def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005, noise_std=0.125, asymmetric_J=True, is_plotting=True, is_saving=True):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
+    print('Coverting QUBO to Ising...')
+    save_mat_file(model)
     target_energy = model.target_energy
     h_dict, J_dict, ising_e_offset = model.to_ising()
     h = h_dict_to_mat(h_dict, model.keys)
     J = J_dict_to_mat(J_dict, model.keys, asymmetric=asymmetric_J)
-    save_mat_file(model)
 
     og_betas = np.atleast_1d(betas)
     betas = og_betas / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
     alphas = 1 - betas                    # alpha is complement of beta for running average
-    
     num_spins = h.shape[0]
     num_betas = betas.shape[0]
 
+    print('Converting into energy minimization problem...')
     W = np.zeros((num_betas, num_spins, num_spins))
     b = np.zeros((num_betas, num_spins))
     for i, (alpha, beta) in enumerate(zip(alphas, betas)):
@@ -151,7 +154,8 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
 
     print('Running simulation...')
     try:
-        for t in tqdm(range(num_iterations)):
+        progress_bar = tqdm(range(num_iterations), dynamic_ncols=True)
+        for t in progress_bar:
             spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
             qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
             
@@ -174,33 +178,43 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
             x_vector = output
             # x_vector -= np.mean(x_vector, axis=1, keepdims=True) # subtract the mean
             x_vector /= np.max(np.abs(x_vector), axis=1, keepdims=True) # upload to AWG
-        print(f'Completed {t+1} iterations.')
-    
-    except KeyboardInterrupt:
-        print(f'\nInterrupted at iteration {t}.')
-        pass # allow the user to interrupt the simulation
 
-    #print_final_energies(energies, og_betas, target_energy)
+            progress_bar.set_description(f"energy: {current_energy.min():.1f} / {target_energy:.1f}")
+        print(f'Done.')
+    except KeyboardInterrupt: # allow user to interrupt the simulation
+        print(f'Interrupted.')
+    print(f'Completed {t+1} iterations.')
+
     e_history = np.array(e_history)
     if is_plotting:
         plot_hp_convergence(e_history, qubo_bits, og_betas, target_energy)
-    # ask user whether to save the results
     if is_saving:
         is_save = input('Save results? (y/N): ')
         if is_save.lower() == 'y':
             save_results(model, e_history, bits_history, x_vector, og_betas, noise_std, asymmetric_J)
 
 if __name__ == '__main__':
-    model = load_hp_model_by_name('S6', latdim=(4,3))
+
+    is_profiling = False
+
+    if is_profiling:
+        profiler = cProfile.Profile()
+        profiler.enable()
+
+    model = load_hp_model_by_name('S30', latdim=(6,6))
     # solve_hp_isingmachine(model, num_iterations=100, num_ics=10, betas=(0.1, 0.01, 0.08), noise_std=0.09, asymmetric_J=True)
     solve_hp_isingmachine(
         model,
         num_iterations=15_000,
         num_ics=1000,
-        betas=(0.001, 0.002, 0.003, 0.004),
+        betas=(0.001, 0.002, 0.003),
         noise_std=0.185,
         asymmetric_J=True,
         is_plotting=True,
         is_saving=False,
         )
     
+    if is_profiling:
+        profiler.disable()
+        stats = pstats.Stats(profiler).sort_stats('cumtime')
+        stats.print_stats(10)
