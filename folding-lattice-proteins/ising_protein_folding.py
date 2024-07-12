@@ -143,9 +143,8 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
 
     x_init = np.random.uniform(-1, 1, (num_ics, num_spins))
     x_vector = np.stack([x_init for _ in range(num_betas)]) # use the same initial state for all betas
-    noise = np.random.normal(0, noise_std, (num_ics, num_spins, num_iterations))
-    noise = np.stack([noise for _ in range(num_betas)])
     output = np.zeros_like(x_vector)
+    noise = np.empty((num_betas, num_ics, num_spins))
 
     bits_history = []
     e_history = []
@@ -169,7 +168,9 @@ def solve_hp_isingmachine(model, num_iterations=250_000, num_ics=2, betas=0.005,
 
             # compute the next state of the system
             np.einsum('ijk,ihk->ihj', W, sigma(x_vector), out=output) # W has shape (B, N, N); x_vector has shape (B, I, N); the output has shape (B, I, N)
-            output += b + noise[:,:,:,t]
+            n_t = np.random.normal(0, noise_std, (num_ics, num_spins))
+            noise[:] = n_t
+            output += b + noise
             x_vector = output
             # x_vector -= np.mean(x_vector, axis=1, keepdims=True) # subtract the mean
             x_vector /= np.max(np.abs(x_vector), axis=1, keepdims=True) # upload to AWG
