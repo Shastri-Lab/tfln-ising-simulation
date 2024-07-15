@@ -44,15 +44,15 @@ def compare_energy_functions(model):
             for j2 in range(number_of_spins):
                 ising_energies_dict[i] += J_dict[model.keys[j1], model.keys[j2]] * ising_spins[i, j1] * ising_spins[i, j2]
             ising_energies_dict[i] += h_dict[model.keys[j1]] * ising_spins[i, j1]
-        ising_energies_dict[i] += ising_e_offset
+        ising_energies_dict[i] += ising_e_offset + model.Lambda[0] * model.len_of_seq
 
     # calculate the Ising energy using the Ising Hamiltonian
     ising_energies_sym = np.zeros(number_of_random_configs)
     for i in range(number_of_random_configs):
-        ising_energies_sym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_sym, ising_spins[i, :]))
+        ising_energies_sym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_sym, ising_spins[i, :]))  + model.Lambda[0] * model.len_of_seq
     ising_energies_asym = np.zeros(number_of_random_configs)
     for i in range(number_of_random_configs):
-        ising_energies_asym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_asym, ising_spins[i, :]))
+        ising_energies_asym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_asym, ising_spins[i, :]))  + model.Lambda[0] * model.len_of_seq
 
     # assert np.allclose(ising_energies_dict, ising_energies_asym)
 
@@ -112,6 +112,6 @@ def plot_energy_offset():
     plt.show()
 
 if __name__ == '__main__':
-    model = load_hp_model_by_name('S4', (3,3))
+    model = load_hp_model_by_name('S10', (4,3), lambdas=(2.1/6, 3 ,4))
     compare_energy_functions(model)
     # plot_energy_offset()
