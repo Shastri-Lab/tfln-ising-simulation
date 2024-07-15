@@ -27,7 +27,7 @@ function show_lattice(ising_string, latdim, hp_sequence, keys)
     cstart = [];
     
     for i = 1:length(ising_string)
-        if ising_string(i) == -1
+        if ising_string(i) ~= 1
             continue;
         end
         s = keys{i, 1};
