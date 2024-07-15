@@ -2,6 +2,7 @@
 This file is copied and modified based on the file HP_Lattice_2D.py in Sandipan Mohanty's GitHub repo, found at:
 https://github.com/sandipan-mohanty/DWaveHPLatticeProteins
 """
+#%%
 
 #!/usr/bin/env python
 import numpy as np
@@ -61,22 +62,31 @@ def constraint_unique_bead_location(g, strength, sequence_length):
     evenpos = [i for i in range(sequence_length) if i%2 == 0]
     oddpos = [i for i in range(sequence_length) if i%2 == 1]
     QQ = defaultdict(float)
-    for i in evenpos:
+    # for i in evenpos:
+    #     for u in g.nodes():
+    #         if parity(u) == 0:
+    #             QQ[((u, i), (u, i))] += -strength
+    #     # for u in g.nodes():
+    #         for v in g.nodes():
+    #             if u != v and parity(u) == 0 and parity(v) == 0:
+    #                 QQ[((u, i), (v, i))] += strength
+    # for i in oddpos:
+    #     for u in g.nodes():
+    #         if parity(u) == 1:
+    #             QQ[((u, i), (u, i))] += -strength
+    #     # for u in g.nodes():
+    #         for v in g.nodes():
+    #             if u != v and parity(u) == 1 and parity(v) == 1:
+    #                 QQ[((u, i), (v, i))] += strength
+    
+    for i in range(sequence_length):
         for u in g.nodes():
-            if parity(u) == 0:
+            if parity(u) == i % 2:
                 QQ[((u, i), (u, i))] += -strength
-        for u in g.nodes():
             for v in g.nodes():
-                if u != v and parity(u) == 0 and parity(v) == 0:
+                if u != v and parity(u) == i % 2 and parity(v) == i % 2:
                     QQ[((u, i), (v, i))] += strength
-    for i in oddpos:
-        for u in g.nodes():
-            if parity(u) == 1:
-                QQ[((u, i), (u, i))] += -strength
-        for u in g.nodes():
-            for v in g.nodes():
-                if u != v and parity(u) == 1 and parity(v) == 1:
-                    QQ[((u, i), (v, i))] += strength
+
     return QQ
 
 def constraint_self_avoidance(g, strength, sequence_length):
@@ -142,6 +152,8 @@ class Lattice_HP_QUBO:
         else:
             self.Lambda = Lambda
 
+        print(f'in __init__: {self.Lambda=}')
+
         G = nx.grid_graph(self.dim)
         self.Q = defaultdict(float)
 
@@ -163,15 +175,20 @@ class Lattice_HP_QUBO:
             ukeys.append(k[1])
         self.keys = list(sorted(set(ukeys)))
         if is_printing:
-            print(f"Sequence: {to_str(self.sequence)}")
+            print(f"Sequence: {self.seq_to_str()}")
             print(f"Sequence length = {self.len_of_seq}")
             print(f"Lattice dimensions : {self.dim}")
             print(f"Bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys):.2f} connections on average.")
+            print(f'Q contains elements in {set(self.Q.values())}')
+
+    def seq_to_str(self):
+        return to_str(self.sequence)
 
     def interaction_matrix(self):
         return self.Q
 
     def get_energies(self, bits):
+        # print(f'in get_energies: {self.Lambda=}')
         qhp = 0.
         q1 = self.Lambda[0] * self.len_of_seq
         q2 = 0. 
@@ -214,8 +231,13 @@ class Lattice_HP_QUBO:
         row_labels = range(latdim[0])
         col_labels = range(latdim[1])
         axes.matshow(image, cmap = lat_cmap)
-        axes.set_xticks(range(latdim[1]), col_labels)
-        axes.set_yticks(range(latdim[0]), row_labels)
+        # axes.set_xticks(range(latdim[1]), col_labels)
+        # axes.set_yticks(range(latdim[0]), row_labels)
+        # remove axis ticks and labels
+        axes.set_xticks([])
+        axes.set_yticks([])
+        axes.set_xticklabels([])
+        axes.set_yticklabels([])
     
         xpos = np.zeros(len(self.sequence))
         ypos = np.zeros(len(self.sequence))
@@ -238,3 +260,5 @@ class Lattice_HP_QUBO:
         axes.plot(xpos, ypos)
         axes.scatter(xstart, ystart, s=25, marker=5)
 
+
+# %%
