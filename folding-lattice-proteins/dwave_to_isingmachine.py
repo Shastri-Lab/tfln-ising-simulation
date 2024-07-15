@@ -53,6 +53,7 @@ def save_model_for_matlab(model, filename):
     scipy.io.savemat(filename, {
         'h': h, 'J': J,
         'L': L, 'N': N, 'M': M,
+        'lambdas': model.Lambda,
         'keys': model.keys,
         'offset': offset_ising,
         'sequence': model.sequence,
