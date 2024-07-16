@@ -44,8 +44,9 @@ function show_lattice(ising_string, latdim, hp_sequence, keys)
         end
     end
     
-    scatter(xpos, ypos, 100, posc, 'filled', 'MarkerEdgeColor', 'k');
-    plot(xpos, ypos, 'k-');
+    validIdx = xpos ~= 0 & ypos ~= 0; % Logical index for valid positions
+    scatter(xpos(validIdx), ypos(validIdx), 100, posc(validIdx, :), 'filled', 'MarkerEdgeColor', 'k');
+    plot(xpos(validIdx), ypos(validIdx), 'k-');
     scatter(xstart, ystart, 25, 'k', 'filled', 'Marker', 'v');
     
     hold off;
