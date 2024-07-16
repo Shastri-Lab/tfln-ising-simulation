@@ -246,7 +246,7 @@ class Lattice_HP_QUBO:
         ystart = []
         cstart = []
         for i, b in enumerate(qubobitstring):
-            if b == 0:
+            if b != 1:
                 continue
             s, f = self.keys[i]
             xpos[f] = (s[0])
@@ -256,6 +256,19 @@ class Lattice_HP_QUBO:
                 xstart.append(s[0])
                 ystart.append(s[1])
                 cstart.append(self.sequence[f])
+
+        text_dict = {}
+        for f, (x_idx, y_idx) in enumerate(zip(xpos, ypos)):
+            t = text_dict.get((x_idx, y_idx), [])
+            t.append(f)
+            text_dict[(x_idx, y_idx)] = t
+        for k, v in text_dict.items():
+            t = ""
+            for i in v:
+                t += str(i) + ","
+            t = t[:-1]
+            axes.text(k[0]-0.4, k[1]-0.3, t, color='k', fontsize=8, ha='left')
+
         axes.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap)
         axes.plot(xpos, ypos)
         axes.scatter(xstart, ystart, s=25, marker=5)
