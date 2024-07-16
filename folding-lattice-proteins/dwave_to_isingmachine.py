@@ -19,20 +19,13 @@ def vector_to_spin_matrix(spin_vector, idx_vector):
         spin_matrix[f, y_idx, x_idx] = spin
     return spin_matrix
 
-def J_dict_to_mat(J_dict, idx_vector, asymmetric=False):
+def J_dict_to_mat(J_dict, idx_vector):
     J_dict = defaultdict(float, J_dict)
     num_indices = len(idx_vector)
     J = np.zeros(shape=(num_indices, num_indices))
-    if asymmetric:
-        for i, idx1 in enumerate(idx_vector):
-            for j, idx2 in enumerate(idx_vector):
-                J[i, j] = J_dict[idx1, idx2]
-    else:
-        for i, idx1 in enumerate(idx_vector):
-            for j in range(i+1, num_indices):
-                idx2 = idx_vector[j]
-                J[i, j] = J_dict.get((idx1, idx2), J_dict.get((idx2, idx1), 0.0))
-                J[j, i] = J[i, j]
+    for i, idx1 in enumerate(idx_vector):
+        for j, idx2 in enumerate(idx_vector):
+            J[i, j] = J_dict[idx1, idx2]
     return J
 
 def h_dict_to_mat(h_dict, idx_vector):

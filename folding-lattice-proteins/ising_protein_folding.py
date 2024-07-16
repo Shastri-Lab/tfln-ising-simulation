@@ -171,14 +171,14 @@ def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std
         )
     print('Done.')
 
-def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, asymmetric_J=True, is_plotting=True, is_saving=True):
+def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=True, is_saving=True):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     print('Coverting QUBO to Ising...')
     save_mat_file(model)
     target_energy = model.target_energy
     h_dict, J_dict, ising_e_offset = model.to_ising()
     h = h_dict_to_mat(h_dict, model.keys)
-    J = J_dict_to_mat(J_dict, model.keys, asymmetric=asymmetric_J)
+    J = J_dict_to_mat(J_dict, model.keys)
 
     x_vector, bits_history, e_history, alpha_beta, qubo_bits = solve_isingmachine(
         J, h, e_offset=ising_e_offset + model.Lambda[0] * model.len_of_seq,
@@ -195,7 +195,7 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
     if is_saving:
         is_save = input('Save results? (y/N): ')
         if is_save.lower() == 'y':
-            save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std, asymmetric_J)
+            save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std)
 
 if __name__ == '__main__':
 

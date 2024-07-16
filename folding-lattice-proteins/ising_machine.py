@@ -28,7 +28,7 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
         b[i, :] = -beta * h / np.max(np.abs(h))  # normalize beta by the maximum coupling strength
     b = np.stack([b for _ in range(num_ics)], axis=1)
 
-    x_init = -np.ones((num_ics, num_spins)) # np.zeros((num_ics, num_spins)) # np.random.uniform(-1, 1, (num_ics, num_spins)) #
+    x_init = np.random.uniform(-0.25, 0.25, (num_ics, num_spins)) #-np.ones((num_ics, num_spins)) # np.zeros((num_ics, num_spins)) # 
     x_vector = np.stack([x_init for _ in range(num_pars)]) # use the same initial state for all betas
     output = np.zeros_like(x_vector)
     noise = np.empty((num_pars, num_ics, num_spins))

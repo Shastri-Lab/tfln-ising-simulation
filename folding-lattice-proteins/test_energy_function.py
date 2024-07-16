@@ -20,8 +20,7 @@ from ising_protein_folding import load_hp_model_by_name
 def compare_energy_functions(model):
     h_dict, J_dict, ising_e_offset = model.to_ising()
     h = h_dict_to_mat(h_dict, model.keys)
-    J_sym = J_dict_to_mat(J_dict, model.keys, asymmetric=False)
-    J_asym = J_dict_to_mat(J_dict, model.keys, asymmetric=True)
+    J = J_dict_to_mat(J_dict, model.keys)
 
     number_of_spins = len(model.keys)
     number_of_random_configs = 1000
@@ -47,19 +46,15 @@ def compare_energy_functions(model):
         ising_energies_dict[i] += ising_e_offset + model.Lambda[0] * model.len_of_seq
 
     # calculate the Ising energy using the Ising Hamiltonian
-    ising_energies_sym = np.zeros(number_of_random_configs)
+    ising_energies = np.zeros(number_of_random_configs)
     for i in range(number_of_random_configs):
-        ising_energies_sym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_sym, ising_spins[i, :]))  + model.Lambda[0] * model.len_of_seq
-    ising_energies_asym = np.zeros(number_of_random_configs)
-    for i in range(number_of_random_configs):
-        ising_energies_asym[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J_asym, ising_spins[i, :]))  + model.Lambda[0] * model.len_of_seq
+        ising_energies[i] = ising_e_offset + np.dot(ising_spins[i, :], h) + np.dot(ising_spins[i, :], np.dot(J, ising_spins[i, :]))  + model.Lambda[0] * model.len_of_seq
 
     # assert np.allclose(ising_energies_dict, ising_energies_asym)
 
     # compare the QUBO and Ising energies
     fig, ax = plt.subplots(1, 1, figsize=(8, 8))
-    # ax.plot(qubo_energies, ising_energies_sym, '.', label='Symmetric')
-    ax.plot(qubo_energies, ising_energies_asym, '.', label='Asymmetric')
+    ax.plot(qubo_energies, ising_energies, '.', label='Matmul')
     ax.plot(qubo_energies, ising_energies_dict, '.', label='Dictionary')
     ax.plot(qubo_energies, qubo_energies, 'k--', label='y=x')
     ax.legend()
@@ -83,7 +78,7 @@ def plot_energy_offset():
     for model in models:
         h_dict, J_dict, ising_e_offset = model.to_ising()
         h = h_dict_to_mat(h_dict, model.keys)
-        J = J_dict_to_mat(J_dict, model.keys, asymmetric=True)
+        J = J_dict_to_mat(J_dict, model.keys)
         number_of_spins = len(model.keys)
         qubo_bits = np.random.randint(0, 2, number_of_spins)
         ising_spins = 2*qubo_bits - 1
