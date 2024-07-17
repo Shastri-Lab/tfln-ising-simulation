@@ -218,50 +218,50 @@ class Lattice_HP_QUBO:
         if axes is None:
             fig, axes = plt.subplots(1, 1, figsize=(8, 8))
 
+        # plot checkerboard background for lattice
         latdim = self.dim
         image = np.zeros(latdim)
         for i in range(latdim[0]):
             for j in range (latdim[1]):
                 image[i,j] = parity([i,j])
-    
         colors = ["#eaeaea", "#fefefe"]
         lat_cmap = ListedColormap(colors, name="lat_cmap")
-        hpcolors = ["#11f033", "#f03311"]
-        hp_cmap = ListedColormap(hpcolors, name="hp_cmap")
         row_labels = range(latdim[0])
         col_labels = range(latdim[1])
         axes.matshow(image, cmap = lat_cmap)
-        # axes.set_xticks(range(latdim[1]), col_labels)
-        # axes.set_yticks(range(latdim[0]), row_labels)
-        # remove axis ticks and labels
         axes.set_xticks([])
         axes.set_yticks([])
         axes.set_xticklabels([])
         axes.set_yticklabels([])
     
-        xpos = np.zeros(len(self.sequence))
-        ypos = np.zeros(len(self.sequence))
-        posc = np.zeros(len(self.sequence))
+        # plot the amino acids on the lattice
+        hpcolors = ["#11f033", "#f03311"]
+        hp_cmap = ListedColormap(hpcolors, name="hp_cmap")
+        fpos = []
+        xpos = [] #np.zeros(len(self.sequence))
+        ypos = [] #np.zeros(len(self.sequence))
+        posc = [] #np.zeros(len(self.sequence))
         xstart = []
         ystart = []
         cstart = []
+        text_dict = {}
         for i, b in enumerate(qubobitstring):
             if b != 1:
                 continue
             s, f = self.keys[i]
-            xpos[f] = (s[0])
-            ypos[f] = (s[1])
-            posc[f] = self.sequence[f]
+            fpos.append(f)
+            xpos.append(s[0])
+            ypos.append(s[1])
+            posc.append(self.sequence[f])
             if f == 0:
                 xstart.append(s[0])
                 ystart.append(s[1])
                 cstart.append(self.sequence[f])
 
-        text_dict = {}
-        for f, (x_idx, y_idx) in enumerate(zip(xpos, ypos)):
-            t = text_dict.get((x_idx, y_idx), [])
+            t = text_dict.get((s[0], s[1]), [])
             t.append(f)
-            text_dict[(x_idx, y_idx)] = t
+            text_dict[(s[0], s[1])] = t            
+            
         for k, v in text_dict.items():
             t = ""
             for i in v:
@@ -269,9 +269,14 @@ class Lattice_HP_QUBO:
             t = t[:-1]
             axes.text(k[0]-0.4, k[1]-0.3, t, color='k', fontsize=8, ha='left')
 
-        axes.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap)
-        axes.plot(xpos, ypos)
-        axes.scatter(xstart, ystart, s=25, marker=5)
+        # sort xpos and ypos based on fpos
+        xpos = np.array([x for _, x in sorted(zip(fpos, xpos), key=lambda a: a[0])])
+        ypos = np.array([y for _, y in sorted(zip(fpos, ypos), key=lambda a: a[0])])
+        posc = np.array([p for _, p in sorted(zip(fpos, posc), key=lambda a: a[0])])
+
+        axes.plot(xpos, ypos, 'k-', lw=0.5)
+        axes.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap, alpha=0.5)
+        axes.scatter(xstart, ystart, c='k', s=25, marker=5)
 
 
 # %%
