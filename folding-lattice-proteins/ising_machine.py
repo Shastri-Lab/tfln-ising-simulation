@@ -26,7 +26,8 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
     for i, (alpha, beta) in enumerate(alpha_beta):
         W[i, :, :] = alpha * np.eye(num_spins) - beta * J / np.max(np.abs(h))  # normalize beta by the maximum coupling strength
         b[i, :] = -beta * h / np.max(np.abs(h))  # normalize beta by the maximum coupling strength
-    b = np.stack([b for _ in range(num_ics)], axis=1)
+    # b = np.stack([b for _ in range(num_ics)], axis=1)
+    W = np.concatenate([W, b.reshape(num_pars, num_spins, 1)], axis=-1) # shape (num_pars, num_spins, num_spins+1)
 
     x_init = np.random.uniform(-0.25, 0.25, (num_ics, num_spins)) #-np.ones((num_ics, num_spins)) # np.zeros((num_ics, num_spins)) # 
     x_vector = np.stack([x_init for _ in range(num_pars)]) # use the same initial state for all betas
@@ -60,10 +61,13 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
                 break
 
             # compute the next state of the system
-            np.einsum('ijk,ihk->ihj', W, sigma(x_vector), out=output) # W has shape (B, N, N); x_vector has shape (B, I, N); the output has shape (B, I, N)
-            n_t = np.random.normal(0, noise_std, (num_ics, num_spins))
-            noise[:] = n_t
-            output += b + noise
+            noise[:] = np.random.normal(0, noise_std, (num_ics, num_spins))
+            x_vector += noise
+            np.einsum(
+                'ijk,ihk->ihj',
+                W, sigma(np.concatenate([x_vector, np.ones((num_pars, num_ics, 1))], axis=-1)),
+                out=output)
+            # output += b
             x_vector = output
             x_vector /= np.max(np.abs(x_vector), axis=-1, keepdims=True) # upload to AWG
 
