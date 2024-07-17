@@ -24,10 +24,15 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
     W = np.zeros((num_pars, num_spins, num_spins))
     b = np.zeros((num_pars, num_spins))
     for i, (alpha, beta) in enumerate(alpha_beta):
-        W[i, :, :] = alpha * np.eye(num_spins) - beta * J / np.max(np.abs(h))  # normalize beta by the maximum coupling strength
-        b[i, :] = -beta * h / np.max(np.abs(h))  # normalize beta by the maximum coupling strength
-    # b = np.stack([b for _ in range(num_ics)], axis=1)
-    W = np.concatenate([W, b.reshape(num_pars, num_spins, 1)], axis=-1) # shape (num_pars, num_spins, num_spins+1)
+        W[i, :, :] = alpha * np.eye(num_spins) - beta * J / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+        b[i, :] = -beta * h / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+    
+    # in hardware, we have the issue that b is much bigger than W, so the bias term dominates the coupling term
+    # to fix this, we scale it down so each element is the same size, then repeat it by the same factor so that the matmul result is unchanged
+    repeat_factor = int(np.max(np.abs(b)) / np.max(np.abs(W))) # repeat the bias term to match the strength of the coupling term
+    b /= repeat_factor # TODO: repeat factor might have a bad effect on different betas; should be ok if they aren't wildly different
+    b = b.reshape(num_pars, num_spins, 1)
+    W = np.concatenate([W]+[b]*repeat_factor, axis=-1) # shape (num_pars, num_spins, num_spins+repeat_factor)
 
     x_init = np.random.uniform(-0.25, 0.25, (num_ics, num_spins)) #-np.ones((num_ics, num_spins)) # np.zeros((num_ics, num_spins)) # 
     x_vector = np.stack([x_init for _ in range(num_pars)]) # use the same initial state for all betas
@@ -65,9 +70,9 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
             x_vector += noise
             np.einsum(
                 'ijk,ihk->ihj',
-                W, sigma(np.concatenate([x_vector, np.ones((num_pars, num_ics, 1))], axis=-1)),
+                W, sigma(np.concatenate([x_vector]+[np.ones((num_pars, num_ics, 1))]*repeat_factor, axis=-1)),
                 out=output)
-            # output += b
+
             x_vector = output
             x_vector /= np.max(np.abs(x_vector), axis=-1, keepdims=True) # upload to AWG
 
