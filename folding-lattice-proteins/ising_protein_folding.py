@@ -20,9 +20,6 @@ from dwave_to_isingmachine import (
     save_model_for_matlab,
 )
 
-ROOT2 = np.sqrt(2)
-def sigma(x): # return np.tanh(ROOT2*x)
-    return sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
     
 def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
     with open(path.join(path.dirname(path.abspath(__file__)), 'protein_sequences.json'), 'r') as f:
