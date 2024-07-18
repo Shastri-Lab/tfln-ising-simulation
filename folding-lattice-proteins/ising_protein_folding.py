@@ -168,7 +168,7 @@ def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std
         )
     print('Done.')
 
-def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=True, is_saving=True):
+def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=True, is_saving=True, simulated_annealing=False):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     print('Coverting QUBO to Ising...')
     save_mat_file(model)
