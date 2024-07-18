@@ -185,6 +185,7 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         alphas=alphas,
         betas=betas,
         noise_std=noise_std,
+        simulated_annealing=simulated_annealing,
     )
 
     if is_plotting:
@@ -213,6 +214,7 @@ if __name__ == '__main__':
         noise_std=0.04,
         is_plotting=True,
         is_saving=False,
+        simulated_annealing=True,
         )
     
     if is_profiling:

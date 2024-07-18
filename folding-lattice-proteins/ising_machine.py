@@ -5,9 +5,37 @@ from numpy import sin, pi
 
 ROOT2 = np.sqrt(2)
 def sigma(x): # return np.tanh(ROOT2*x)
-    return -0.5 + np.cos(pi/4 * (x-1))**2 # 0.5*sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
+    return -1 + 2*np.cos(pi/4 * (x-1))**2 # 0.5*sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
 
-def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=250_000, num_ics=2, alphas=None, betas=0.01, noise_std=0.1, early_break=True):
+def solve_isingmachine(
+        J, h,
+        e_offset=0.0,
+        target_energy=None,
+        num_iterations=250_000,
+        num_ics=2,
+        alphas=None,
+        betas=0.01,
+        noise_std=0.1,
+        early_break=True,
+        simulated_annealing=False,
+        ):
+    """
+    Solve an Ising problem defined by J and h using the coherent Ising machine model.
+
+    Args:
+        J (np.ndarray): Coupling matrix.
+        h (np.ndarray): Field vector.
+        e_offset (float): Energy offset.
+        target_energy (float): Target energy for early stopping.
+        num_iterations (int): Number of iterations.
+        num_ics (int): Number of initial conditions.
+        alphas (np.ndarray): Decay rates.
+        betas (np.ndarray): Learning rates.
+        noise_std (float): Standard deviation of the noise.
+        early_break (bool): Whether to stop early if the target energy is reached.
+        simulated_annealing (bool): Whether to use simulated annealing acceptance criterion.
+    
+    """
     og_betas = np.atleast_1d(betas)
     betas = og_betas
     if alphas is None:
@@ -40,27 +68,26 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
     output = np.zeros_like(x_vector)
     noise = np.empty((num_pars, num_ics, num_spins))
 
-    bits_history = []
-    e_history = []
+    # compute the energy of the initial state
+    spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
+    qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+    current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+    min_energy_idx_flat = np.argmin(current_energy)
+    min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
+    min_energy = current_energy[min_energy_idx]
+    min_qubo_bits = qubo_bits[*min_energy_idx, :]
+
+    bits_history = [qubo_bits.astype(bool)]
+    e_history = [current_energy.astype(np.float32)]
+
+    last_energy = current_energy
+    temperature = 1e-6
 
     print('Running simulation...')
     try:
         desc = f'target energy: {target_energy:.1f}' if target_energy else ''
         progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
-            spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
-            qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
-            
-            current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
-            min_energy_idx_flat = np.argmin(current_energy)
-            min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
-            min_energy = current_energy[min_energy_idx]
-            assert min_energy == current_energy.min()
-            min_qubo_bits = qubo_bits[*min_energy_idx, :]
-
-            # record the history
-            bits_history.append(qubo_bits.astype(bool))
-            e_history.append(current_energy.astype(np.float32))
             
             # break if we are close enough to the target energy
             if early_break and target_energy and np.any(np.abs(current_energy - target_energy) < 1e-3):
@@ -75,8 +102,36 @@ def solve_isingmachine(J, h, e_offset=0.0, target_energy=None, num_iterations=25
                 out=output
                 )
 
-            x_vector = output
-            x_vector /= np.max(np.abs(x_vector), axis=-1, keepdims=True) # upload to AWG
+            output /= np.max(np.abs(output), axis=-1, keepdims=True)
+            # np.clip(output, -1, 1, out=x_vector)
+
+            # compute the energy of the next state
+            spin_vector = np.sign(output)     # σ ∈ {-1, 1}
+            qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+            current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+            min_energy_idx_flat = np.argmin(current_energy)
+            min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
+            min_energy = current_energy[min_energy_idx]
+            min_qubo_bits = qubo_bits[*min_energy_idx, :]
+            
+            if simulated_annealing:
+                # compare the current energy to the last energy
+                delta_e = current_energy - last_energy
+                acceptance_prob = np.exp(-delta_e / temperature)
+                random_numbers = np.random.rand(*acceptance_prob.shape)
+                accept = random_numbers < acceptance_prob
+                # accept = delta_e < 0
+                x_vector[accept, :] = output[accept, :]
+                # breakpoint()
+            else:
+                x_vector = output
+
+            # record the history
+            spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
+            qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+            last_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+            bits_history.append(qubo_bits.astype(bool))
+            e_history.append(last_energy.astype(np.float32))
 
             if target_energy:
                 progress_bar.set_description(f"energy: {current_energy.min():.1f} / {target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}")
