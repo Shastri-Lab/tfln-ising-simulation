@@ -81,14 +81,14 @@ def solve_isingmachine(
     e_history = [current_energy.astype(np.float32)]
 
     last_energy = current_energy
-    temperature = 1e-6
+    temperature = 10.0
+    delta_t = temperature / num_iterations
 
     print('Running simulation...')
     try:
         desc = f'target energy: {target_energy:.1f}' if target_energy else ''
         progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
-            
             # break if we are close enough to the target energy
             if early_break and target_energy and np.any(np.abs(current_energy - target_energy) < 1e-3):
                 break
@@ -120,9 +120,8 @@ def solve_isingmachine(
                 acceptance_prob = np.exp(-delta_e / temperature)
                 random_numbers = np.random.rand(*acceptance_prob.shape)
                 accept = random_numbers < acceptance_prob
-                # accept = delta_e < 0
                 x_vector[accept, :] = output[accept, :]
-                # breakpoint()
+                temperature -= delta_t
             else:
                 x_vector = output
 
@@ -134,9 +133,9 @@ def solve_isingmachine(
             e_history.append(last_energy.astype(np.float32))
 
             if target_energy:
-                progress_bar.set_description(f"energy: {current_energy.min():.1f} / {target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}")
+                progress_bar.set_description(f"energy: {last_energy.min():.1f} / {target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}")
             else:
-                progress_bar.set_description(f"energy: {current_energy.min():.1f}")
+                progress_bar.set_description(f"energy: {last_energy.min():.1f}")
         print(f'Done.')
     except KeyboardInterrupt: # allow user to interrupt the simulation
         print(f'Interrupted.')

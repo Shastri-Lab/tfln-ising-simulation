@@ -75,7 +75,6 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
     inset_ax = fig.add_axes([0.75, 0.625, 0.155, 0.3])
     inset_ax.set_title(f'E = {min_energy:.1f}\nα = {min_energy_alpha:.1e}, β = {min_energy_beta:.1e}', horizontalalignment='left', loc='left')
     model.show_lattice(min_qubo_bits, axes=inset_ax)
-    
     plt.show()
 
 def plot_hp_convergence_old(model, e_history, qubo_bits, alpha_beta, target_energy=None):
@@ -131,12 +130,10 @@ def print_final_energies(final_energies, betas, target_energy):
         energy = [round(e, 1) for e in energy]
         print(f'β = {beta:.1e}: E = {sum(energy):.1f} {energy}')
 
-def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std, asym):
+def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std):
     data_dir = path.join(path.dirname(path.abspath(__file__)), 'results')
     os.makedirs(data_dir, exist_ok=True) # create the directory if it doesn't exist
     results_filename = path.join(data_dir, f'{model.name}_{model.dim[1]}x{model.dim[0]}')
-    if asym:
-        results_filename += '_asym'
     i = 1
     filename = results_filename + '.npz'
     while path.exists(filename):
