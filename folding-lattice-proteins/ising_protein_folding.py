@@ -68,11 +68,11 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
         for energy_component, ls in zip(other_energies, (':', '--', '-.', (0, (3, 5, 1, 5, 1, 5)))):
             ax.plot(iters, energy_component[:, i, min_energy_beta_idx], ls=ls, lw=1.0, color=f'C{i}')
 
-    # make custom legend for the energy components
-    ax.plot([], [], ls=':', color='k', label='$E_{HP}$')
-    ax.plot([], [], ls='--', color='k', label='$E_{1}$')
-    ax.plot([], [], ls='-.', color='k', label='$E_{2}$')
-    ax.plot([], [], ls=(0, (3, 5, 1, 5, 1, 5)), color='k', label='$E_{3}$')
+    if len(other_energies) > 0:# make custom legend for the energy components
+        ax.plot([], [], ls=':', color='k', label='$E_{HP}$')
+        ax.plot([], [], ls='--', color='k', label='$E_{1}$')
+        ax.plot([], [], ls='-.', color='k', label='$E_{2}$')
+        ax.plot([], [], ls=(0, (3, 5, 1, 5, 1, 5)), color='k', label='$E_{3}$')
 
     ax.set_xlabel('Iteration')
     ax.set_ylabel('Energy')
