@@ -37,8 +37,7 @@ def h_dict_to_mat(h_dict, idx_vector):
     return h
 
 def save_model_for_matlab(model, filename):
-    Q_qubo = model.interaction_matrix()
-    h_ising, J_ising, offset_ising = qubo_to_ising(Q_qubo)
+    h_ising, J_ising, offset_ising = model.to_ising()
     L = len(model.sequence)
     N, M = model.dim
     h = h_dict_to_mat(h_ising, model.keys)

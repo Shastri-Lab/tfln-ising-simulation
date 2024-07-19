@@ -36,6 +36,18 @@ def solve_isingmachine(
         simulated_annealing (bool): Whether to use simulated annealing acceptance criterion.
     
     """
+
+    if type(J) is list:
+        separate_energies = True
+        Jhp, J1, J2, J3 = J
+        hhp, h1, h2, h3 = h
+        ehp, e1, e2, e3 = e_offset
+        J = sum([Jhp, J1, J2, J3])
+        h = sum([hhp, h1, h2, h3])
+        e_offset = sum([ehp, e1, e2, e3])
+    else:
+        separate_energies = False
+
     og_betas = np.atleast_1d(betas)
     betas = og_betas
     if alphas is None:
@@ -71,14 +83,25 @@ def solve_isingmachine(
     # compute the energy of the initial state
     spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
     qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
-    current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+    if separate_energies: # energy contributions are separated
+        energy_hp = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', Jhp, spin_vector)) + np.einsum('k,ijk->ij', hhp, spin_vector) + ehp
+        energy_1 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J1, spin_vector)) + np.einsum('k,ijk->ij', h1, spin_vector) + e1
+        energy_2 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J2, spin_vector)) + np.einsum('k,ijk->ij', h2, spin_vector) + e2
+        energy_3 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J3, spin_vector)) + np.einsum('k,ijk->ij', h3, spin_vector) + e3
+        current_energy = energy_hp + energy_1 + energy_2 + energy_3
+    else:
+        current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
     min_energy_idx_flat = np.argmin(current_energy)
     min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
     min_energy = current_energy[min_energy_idx]
-    min_qubo_bits = qubo_bits[*min_energy_idx, :]
+    min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
 
     bits_history = [qubo_bits.astype(bool)]
-    e_history = [current_energy.astype(np.float32)]
+    e_history = []
+    if separate_energies:
+        e_history.append([e.astype(np.float32) for e in [energy_hp, energy_1, energy_2, energy_3]])
+    else:
+        e_history.append(current_energy.astype(np.float32))
 
     last_energy = current_energy
     temperature = 10.0
@@ -108,11 +131,18 @@ def solve_isingmachine(
             # compute the energy of the next state
             spin_vector = np.sign(output)     # σ ∈ {-1, 1}
             qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
-            current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+            if separate_energies: # energy contributions are separated
+                energy_hp = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', Jhp, spin_vector)) + np.einsum('k,ijk->ij', hhp, spin_vector) + ehp
+                energy_1 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J1, spin_vector)) + np.einsum('k,ijk->ij', h1, spin_vector) + e1
+                energy_2 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J2, spin_vector)) + np.einsum('k,ijk->ij', h2, spin_vector) + e2
+                energy_3 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J3, spin_vector)) + np.einsum('k,ijk->ij', h3, spin_vector) + e3
+                current_energy = energy_hp + energy_1 + energy_2 + energy_3
+            else:
+                current_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
             min_energy_idx_flat = np.argmin(current_energy)
             min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
             min_energy = current_energy[min_energy_idx]
-            min_qubo_bits = qubo_bits[*min_energy_idx, :]
+            min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
             
             if simulated_annealing:
                 # compare the current energy to the last energy
@@ -128,9 +158,22 @@ def solve_isingmachine(
             # record the history
             spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
             qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
-            last_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+            if separate_energies: # energy contributions are separated
+                energy_hp = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', Jhp, spin_vector)) + np.einsum('k,ijk->ij', hhp, spin_vector) + ehp
+                energy_1 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J1, spin_vector)) + np.einsum('k,ijk->ij', h1, spin_vector) + e1
+                energy_2 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J2, spin_vector)) + np.einsum('k,ijk->ij', h2, spin_vector) + e2
+                energy_3 = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J3, spin_vector)) + np.einsum('k,ijk->ij', h3, spin_vector) + e3
+                last_energy = energy_hp + energy_1 + energy_2 + energy_3
+                e_history.append([e.astype(np.float32) for e in [energy_hp, energy_1, energy_2, energy_3]])
+            else:
+                last_energy = np.einsum('ijk,ijk->ij', spin_vector, np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h, spin_vector) + e_offset
+                e_history.append(last_energy.astype(np.float32))
+
+            min_energy_idx_flat = np.argmin(last_energy)
+            min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
+            min_energy = current_energy[min_energy_idx]
+            min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
             bits_history.append(qubo_bits.astype(bool))
-            e_history.append(last_energy.astype(np.float32))
 
             if target_energy:
                 progress_bar.set_description(f"energy: {last_energy.min():.1f} / {target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}")

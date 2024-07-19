@@ -10,6 +10,7 @@ from numpy import pi, sin, cos
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from hp_lattice import Lattice_HP_QUBO
+from dimod.utilities import qubo_to_ising
 from ising_machine import solve_isingmachine
 from dwave.samplers import SimulatedAnnealingSampler
 from dwave_to_isingmachine import (
@@ -41,18 +42,38 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
 
     ax.set_title('Ising Energy')
     if target_energy is not None:
-        ax.axhline(target_energy, color='k', linestyle='--')
+        ax.axhline(target_energy, color='k', linestyle=(0, (1, 1)))
     
-    # e_history has shape (T, B, I)
-    num_ics = e_history.shape[2]
-    iters = list(range(e_history.shape[0]))
+    # e_history has shape (T, B, I) or (T, 4, B, I) if energies are separated
+    other_energies = []
+    if e_history.ndim == 4:
+        # separate into HP, C1, C2, C3
+        e_hp = e_history[:, 0, :, :]
+        e_c1 = e_history[:, 1, :, :]
+        e_c2 = e_history[:, 2, :, :]
+        e_c3 = e_history[:, 3, :, :]
+        other_energies = [e_hp, e_c1, e_c2, e_c3]
+        total_energy_hist = e_hp + e_c1 + e_c2 + e_c3
+    else:
+        total_energy_hist = e_history
+
+    num_ics = total_energy_hist.shape[2]
+    iters = list(range(total_energy_hist.shape[0]))
     for i, (alpha, beta) in enumerate(alpha_beta):
         if num_ics > 1: 
-            ax.fill_between(iters, e_history[:, i, :].min(axis=-1), e_history[:, i, :].max(axis=-1), alpha=0.1, color=f'C{i}')
+            ax.fill_between(iters, total_energy_hist[:, i, :].min(axis=-1), total_energy_hist[:, i, :].max(axis=-1), alpha=0.1, color=f'C{i}')
         # figure out which one has minimum energy at the last iteration
-        min_energy_beta_idx = np.argmin(e_history[-1, i, :])
-        ax.plot(iters, e_history[:, i, min_energy_beta_idx], '.-', lw=0.75, ms=2.0, label=f'α = {alpha:.1e}, β = {beta:.1e}', color=f'C{i}')
-    
+        min_energy_beta_idx = np.argmin(total_energy_hist[-1, i, :])
+        ax.plot(iters, total_energy_hist[:, i, min_energy_beta_idx], '.-', lw=0.75, ms=2.0, label=f'α = {alpha:.1e}, β = {beta:.1e}', color=f'C{i}')
+        for energy_component, ls in zip(other_energies, (':', '--', '-.', (0, (3, 5, 1, 5, 1, 5)))):
+            ax.plot(iters, energy_component[:, i, min_energy_beta_idx], ls=ls, lw=1.0, color=f'C{i}')
+
+    # make custom legend for the energy components
+    ax.plot([], [], ls=':', color='k', label='$E_{HP}$')
+    ax.plot([], [], ls='--', color='k', label='$E_{1}$')
+    ax.plot([], [], ls='-.', color='k', label='$E_{2}$')
+    ax.plot([], [], ls=(0, (3, 5, 1, 5, 1, 5)), color='k', label='$E_{3}$')
+
     ax.set_xlabel('Iteration')
     ax.set_ylabel('Energy')
     
@@ -60,8 +81,8 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
     # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     ax.legend(loc='lower left', bbox_to_anchor=(1, 0))
     
-    final_energies = e_history[-1, :, :]
     # find index of the minimum energy
+    final_energies = total_energy_hist[-1, :, :]
     min_energy_idx_flat = np.argmin(final_energies)
     min_energy_idx = np.unravel_index(min_energy_idx_flat, final_energies.shape)
     min_energy = final_energies[min_energy_idx]
@@ -69,9 +90,7 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
     min_energy_alpha, min_energy_beta = alpha_beta[min_energy_idx[0]]
     print(f'Minimum bits has sum: {min_qubo_bits.sum()}')
 
-
     # create inset for lattice
-    # inset_ax = fig.add_axes([0.83, 0.6, 0.155, 0.3])
     inset_ax = fig.add_axes([0.75, 0.625, 0.155, 0.3])
     inset_ax.set_title(f'E = {min_energy:.1f}\nα = {min_energy_alpha:.1e}, β = {min_energy_beta:.1e}', horizontalalignment='left', loc='left')
     model.show_lattice(min_qubo_bits, axes=inset_ax)
@@ -165,7 +184,7 @@ def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std
         )
     print('Done.')
 
-def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=True, is_saving=True, simulated_annealing=False):
+def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=True, is_saving=True, simulated_annealing=False, separate_energies=False):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     print('Coverting QUBO to Ising...')
     save_mat_file(model)
@@ -174,8 +193,37 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
     h = h_dict_to_mat(h_dict, model.keys)
     J = J_dict_to_mat(J_dict, model.keys)
 
+    if separate_energies:
+        QHP = model.optimization_matrix()
+        h_dict_HP, J_dict_HP, e_HP = qubo_to_ising(QHP)
+        h_HP = h_dict_to_mat(h_dict_HP, model.keys)
+        J_HP = J_dict_to_mat(J_dict_HP, model.keys)
+
+        Q1 = model.constraint_matrix_1()
+        h_dict_1, J_dict_1, e_1 = qubo_to_ising(Q1)
+        h_1 = h_dict_to_mat(h_dict_1, model.keys)
+        J_1 = J_dict_to_mat(J_dict_1, model.keys)
+
+        Q2 = model.constraint_matrix_2()
+        h_dict_2, J_dict_2, e_2 = qubo_to_ising(Q2)
+        h_2 = h_dict_to_mat(h_dict_2, model.keys)
+        J_2 = J_dict_to_mat(J_dict_2, model.keys)
+
+        Q3 = model.constraint_matrix_3()
+        h_dict_3, J_dict_3, e_3 = qubo_to_ising(Q3)
+        h_3 = h_dict_to_mat(h_dict_3, model.keys)
+        J_3 = J_dict_to_mat(J_dict_3, model.keys)
+
+        J = [J_HP, J_1, J_2, J_3]
+        h = [h_HP, h_1, h_2, h_3]
+        ising_e_offset = [e_HP, e_1+model.Lambda[0]*model.len_of_seq, e_2, e_3]
+    else:
+        ising_e_offset += model.Lambda[0]*model.len_of_seq
+
     x_vector, bits_history, e_history, alpha_beta, qubo_bits = solve_isingmachine(
-        J, h, e_offset=ising_e_offset + model.Lambda[0] * model.len_of_seq,
+        J,
+        h,
+        e_offset=ising_e_offset,
         target_energy=target_energy,
         num_iterations=num_iterations,
         num_ics=num_ics,
@@ -212,6 +260,7 @@ if __name__ == '__main__':
         is_plotting=True,
         is_saving=False,
         simulated_annealing=True,
+        separate_energies=True,
         )
     
     if is_profiling:

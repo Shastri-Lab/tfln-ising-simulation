@@ -187,6 +187,26 @@ class Lattice_HP_QUBO:
     def interaction_matrix(self):
         return self.Q
 
+    def optimization_matrix(self):
+        return self.QHP
+
+    def constraint_matrix_1(self):
+        return self.Q1
+    
+    def constraint_matrix_2(self):
+        return self.Q2
+    
+    def constraint_matrix_3(self):
+        return self.Q3
+
+    def Q_as_np_array(self, Q_dict):
+        Q = np.zeros((len(self.keys), len(self.keys)))
+        for i in range(len(self.keys)):
+            for j in range(len(self.keys)):
+                if (self.keys[i], self.keys[j]) in Q_dict:
+                    Q[i, j] = Q_dict[(self.keys[i], self.keys[j])]
+        return Q
+
     def get_energies(self, bits):
         # print(f'in get_energies: {self.Lambda=}')
         qhp = 0.
