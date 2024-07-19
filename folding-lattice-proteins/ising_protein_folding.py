@@ -1,21 +1,13 @@
 import os
 import json
-import cProfile
-import pstats
 import numpy as np
 from tqdm import tqdm
 import os.path as path
-from math import ceil, floor
-from numpy import pi, sin, cos
 import matplotlib.pyplot as plt
-from dataclasses import dataclass
 from hp_lattice import Lattice_HP_QUBO
 from dimod.utilities import qubo_to_ising
 from ising_machine import solve_isingmachine
-from dwave.samplers import SimulatedAnnealingSampler
 from dwave_to_isingmachine import (
-    flatten_spin_matrix,
-    vector_to_spin_matrix,
     J_dict_to_mat,
     h_dict_to_mat,
     save_model_for_matlab,
@@ -241,30 +233,3 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         if is_save.lower() == 'y':
             save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std)
 
-if __name__ == '__main__':
-
-    is_profiling = False
-
-    if is_profiling:
-        profiler = cProfile.Profile()
-        profiler.enable()
-
-    hp_model = load_hp_model_by_name('S10', latdim=(4,3), lambdas=(10, 11, 12))
-    # solve_hp_isingmachine(model, num_iterations=100, num_ics=10, betas=(0.1, 0.01, 0.08), noise_std=0.09, asymmetric_J=True)
-    solve_hp_problem(
-        hp_model,
-        num_iterations=250,
-        num_ics=50000,
-        alphas=(0.1, ), # 0.85, 0.9, 0.999), # np.logspace(0, -0.25, 5),
-        betas=(0.05, 0.005), # 0.0025, 0.05, 0.1), # np.logspace(-4, -0.25, 5),
-        noise_std=0.04,
-        is_plotting=True,
-        is_saving=False,
-        simulated_annealing=True,
-        separate_energies=True,
-        )
-    
-    if is_profiling:
-        profiler.disable()
-        stats = pstats.Stats(profiler).sort_stats('cumtime')
-        stats.print_stats(10)
