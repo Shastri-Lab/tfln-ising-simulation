@@ -152,8 +152,6 @@ class Lattice_HP_QUBO:
         else:
             self.Lambda = Lambda
 
-        print(f'in __init__: {self.Lambda=}')
-
         G = nx.grid_graph(self.dim)
         self.Q = defaultdict(float)
 

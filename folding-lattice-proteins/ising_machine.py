@@ -18,6 +18,7 @@ def solve_isingmachine(
         noise_std=0.1,
         early_break=True,
         simulated_annealing=False,
+        desired_num_up=None,
         ):
     """
     Solve an Ising problem defined by J and h using the coherent Ising machine model.
@@ -124,6 +125,14 @@ def solve_isingmachine(
                 sigma(np.concatenate([x_vector+noise]+[np.ones((num_pars, num_ics, 1))]*repeat_factor, axis=-1)),
                 out=output
                 )
+
+            if desired_num_up is not None:
+                # (num_pars, num_ics, num_spins)
+                # for each parameter and initial condition, change the number of spins up to the desired number
+                sorted_spins = np.sort(output, axis=-1)
+                threshold = (sorted_spins[:, :, -desired_num_up] + sorted_spins[:, :, -desired_num_up-1]) / 2
+                output -= threshold[:, :, None]
+                # assert np.all(np.sum(output > 0, axis=-1) == desired_num_up)
 
             output /= np.max(np.abs(output), axis=-1, keepdims=True)
             # np.clip(output, -1, 1, out=x_vector)
