@@ -6,7 +6,7 @@ import os.path as path
 import matplotlib.pyplot as plt
 from hp_lattice import Lattice_HP_QUBO
 from dimod.utilities import qubo_to_ising
-from ising_machine import solve_isingmachine
+from ising_machine import solve_isingmachine, solve_isingmachine_gpu
 from dwave_to_isingmachine import (
     J_dict_to_mat,
     h_dict_to_mat,
@@ -232,4 +232,36 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         is_save = input('Save results? (y/N): ')
         if is_save.lower() == 'y':
             save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std)
+
+
+def solve_hp_problem_gpu(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=False, is_saving=False):
+    print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
+    print('Coverting QUBO to Ising...')
+    save_mat_file(model)
+    target_energy = model.target_energy
+    h_dict, J_dict, ising_e_offset = model.to_ising()
+    h = h_dict_to_mat(h_dict, model.keys)
+    J = J_dict_to_mat(J_dict, model.keys)
+    ising_e_offset += model.Lambda[0] * model.len_of_seq
+
+    x_vector, bits_history, e_history, alpha_beta, qubo_bits = solve_isingmachine_gpu(
+        J,
+        h,
+        e_offset=ising_e_offset,
+        target_energy=target_energy,
+        num_iterations=num_iterations,
+        num_ics=num_ics,
+        alphas=alphas,
+        betas=betas,
+        noise_std=noise_std,
+        save_iter_freq=5,
+    )
+
+    if is_plotting:
+        plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, target_energy)
+    if is_saving:
+        is_save = input('Save results? (y/N): ')
+        if is_save.lower() == 'y':
+            save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std)
+
 

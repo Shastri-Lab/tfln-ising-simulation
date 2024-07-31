@@ -196,3 +196,118 @@ def solve_isingmachine(
     e_history = np.array(e_history)
     return x_vector, bits_history, e_history, alpha_beta, qubo_bits
 
+import torch
+
+def solve_isingmachine_gpu(
+        J, h,
+        e_offset=0.0,
+        target_energy=None,
+        num_iterations=250_000,
+        num_ics=2,
+        alphas=None,
+        betas=0.01,
+        noise_std=0.1,
+        early_break=True,
+        save_iter_freq=5,
+        ):
+    """
+    Solve an Ising problem defined by J and h using the coherent Ising machine model.
+
+    Args:
+        J (np.ndarray): Coupling matrix.
+        h (np.ndarray): Field vector.
+        e_offset (float): Energy offset.
+        target_energy (float): Target energy for early stopping.
+        num_iterations (int): Number of iterations.
+        num_ics (int): Number of initial conditions.
+        alphas (np.ndarray): Decay rates.
+        betas (np.ndarray): Learning rates.
+        noise_std (float): Standard deviation of the noise.
+        early_break (bool): Whether to stop early if the target energy is reached.
+    
+    """
+
+    og_betas = np.atleast_1d(betas)
+    betas = og_betas
+    if alphas is None:
+        alphas = 1 - betas                    # alpha is complement of beta for running average
+        alpha_beta = np.stack([alphas, betas], axis=-1).reshape(-1, 2)
+    else:
+        alphas = np.atleast_1d(alphas)        # allow for multiple alphas too
+        alpha_beta = np.stack(np.meshgrid(alphas, betas), axis=-1).reshape(-1, 2)
+
+    num_spins = h.shape[0]
+    num_pars = alpha_beta.shape[0]
+
+    print('Converting into energy minimization problem...')
+    W = np.zeros((num_pars, num_spins, num_spins))
+    b = np.zeros((num_pars, num_spins))
+    for i, (alpha, beta) in enumerate(alpha_beta):
+        W[i, :, :] = alpha * np.eye(num_spins) - beta * J / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+        b[i, :] = -beta * h / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+    
+    # in hardware, we have the issue that b is much bigger than W, so the bias term dominates the coupling term
+    # to fix this, we scale it down so each element is the same size, then repeat it by the same factor so that the matmul result is unchanged
+    repeat_factor = int(max(1.0, np.max(np.abs(b)) / np.max(np.abs(W)))) # repeat the bias term to match the strength of the coupling term
+    print(f'Scaling down b and repeating {repeat_factor} times.')
+    b /= repeat_factor # TODO: repeat factor might have a bad effect on different betas; should be ok if they aren't wildly different
+    b = b.reshape(num_pars, num_spins, 1)
+    W = np.concatenate([W]+[b]*repeat_factor, axis=-1) # shape (num_pars, num_spins, num_spins+repeat_factor)
+
+    x_init = np.random.uniform(-0.25, 0.25, (num_ics, num_spins)) #-np.ones((num_ics, num_spins)) # np.zeros((num_ics, num_spins)) # 
+    x_vector = np.stack([x_init for _ in range(num_pars)]) # use the same initial state for all betas
+    output = np.zeros_like(x_vector)
+    noise = np.empty((num_pars, num_ics, num_spins))
+
+    # tensorize - use torch from here onward
+    x_vector = torch.tensor(x_vector, dtype=torch.float32).cuda()
+    output = torch.tensor(output, dtype=torch.float32).cuda()
+    noise = torch.tensor(noise, dtype=torch.float32).cuda()
+    W = torch.tensor(W, dtype=torch.float32).cuda()
+
+    # compute the energy of the initial state
+    spin_vector = torch.sign(x_vector)     # σ ∈ {-1, 1}
+    qubo_bits = (spin_vector + 1) / 2       # q ∈ {0, 1}
+    current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
+
+    bits_history = [qubo_bits.astype(bool)]
+    e_history = [current_energy.astype(torch.float32)]
+
+    print('Running simulation...')
+    try:
+        desc = f'target energy: {target_energy:.1f}' if target_energy else ''
+        progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
+        for t in progress_bar:
+            # break if we are close enough to the target energy
+            if early_break and target_energy and torch.any(torch.abs(current_energy - target_energy) < 1e-3):
+                break
+
+            # compute the next state of the system
+            noise[:] = torch.normal(0, noise_std, (num_ics, num_spins), device='cuda')
+            torch.einsum(
+                'ijk,ihk->ihj',
+                W,
+                sigma(torch.cat([x_vector+noise]+[torch.ones((num_pars, num_ics, 1), device='cuda')]*repeat_factor, axis=-1)),
+                out=output
+                )
+            output /= torch.max(torch.abs(output), axis=-1, keepdims=True)[0] # TODO: the [0] index was added because torch.max also returns the indices; torch.max also squeezes the dimensions so careful if any dim=1
+            x_vector = output
+
+            if t % save_iter_freq == 0: # do CPU stuff: record history, update progress bar
+                spin_vector = torch.sign(x_vector)     # σ ∈ {-1, 1}
+                qubo_bits = (spin_vector + 1) / 2       # q ∈ {0, 1}
+                current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
+                e_history.append(current_energy.cpu().numpy().astype(np.float32))
+                bits_history.append(qubo_bits.cpu().numpy().astype(bool))
+                if target_energy:
+                    progress_bar.set_description(f"energy: {current_energy.min().item():.1f} / {target_energy:.1f}")
+                else:
+                    progress_bar.set_description(f"energy: {current_energy.min().item():.1f}")
+        print(f'Done.')
+    except KeyboardInterrupt: # allow user to interrupt the simulation
+        print(f'Interrupted.')
+    print(f'Completed {t+1} iterations.')
+
+    e_history = np.array(e_history)
+    return x_vector, bits_history, e_history, alpha_beta, qubo_bits
+
