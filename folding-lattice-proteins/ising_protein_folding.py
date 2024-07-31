@@ -234,7 +234,7 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
             save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std)
 
 
-def solve_hp_problem_gpu(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=False, is_saving=False):
+def solve_hp_problem_gpu(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=False, is_saving=False, early_break=True):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     print('Coverting QUBO to Ising...')
     save_mat_file(model)
@@ -254,6 +254,7 @@ def solve_hp_problem_gpu(model, num_iterations=250_000, num_ics=2, alphas=None, 
         alphas=alphas,
         betas=betas,
         noise_std=noise_std,
+        early_break=early_break,
         save_iter_freq=5,
     )
 

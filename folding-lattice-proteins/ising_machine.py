@@ -198,6 +198,9 @@ def solve_isingmachine(
 
 import torch
 
+def sigma_gpu(x): # return np.tanh(ROOT2*x)
+    return -1 + 2*torch.cos(pi/4 * (x-1))**2 # 0.5*sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
+
 def solve_isingmachine_gpu(
         J, h,
         e_offset=0.0,
@@ -264,14 +267,16 @@ def solve_isingmachine_gpu(
     output = torch.tensor(output, dtype=torch.float32).cuda()
     noise = torch.tensor(noise, dtype=torch.float32).cuda()
     W = torch.tensor(W, dtype=torch.float32).cuda()
+    J = torch.tensor(J, dtype=torch.float32).cuda()
+    h = torch.tensor(h, dtype=torch.float32).cuda()
 
     # compute the energy of the initial state
     spin_vector = torch.sign(x_vector)     # σ ∈ {-1, 1}
     qubo_bits = (spin_vector + 1) / 2       # q ∈ {0, 1}
     current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
 
-    bits_history = [qubo_bits.astype(bool)]
-    e_history = [current_energy.astype(torch.float32)]
+    bits_history = [qubo_bits.cpu().numpy().astype(bool)]
+    e_history = [current_energy.cpu().numpy().astype(np.float32)]
 
     print('Running simulation...')
     try:
@@ -284,11 +289,10 @@ def solve_isingmachine_gpu(
 
             # compute the next state of the system
             noise[:] = torch.normal(0, noise_std, (num_ics, num_spins), device='cuda')
-            torch.einsum(
+            output = torch.einsum(
                 'ijk,ihk->ihj',
                 W,
-                sigma(torch.cat([x_vector+noise]+[torch.ones((num_pars, num_ics, 1), device='cuda')]*repeat_factor, axis=-1)),
-                out=output
+                sigma_gpu(torch.cat([x_vector+noise]+[torch.ones((num_pars, num_ics, 1), device='cuda')]*repeat_factor, axis=-1)),
                 )
             output /= torch.max(torch.abs(output), axis=-1, keepdims=True)[0] # TODO: the [0] index was added because torch.max also returns the indices; torch.max also squeezes the dimensions so careful if any dim=1
             x_vector = output
