@@ -212,6 +212,7 @@ def solve_isingmachine_gpu(
         noise_std=0.1,
         early_break=True,
         save_iter_freq=5,
+        skip_energy_calculation=False
         ):
     """
     Solve an Ising problem defined by J and h using the coherent Ising machine model.
@@ -267,16 +268,20 @@ def solve_isingmachine_gpu(
     output = torch.tensor(output, dtype=torch.float32).cuda()
     noise = torch.tensor(noise, dtype=torch.float32).cuda()
     W = torch.tensor(W, dtype=torch.float32).cuda()
-    J = torch.tensor(J, dtype=torch.float32).cuda()
-    h = torch.tensor(h, dtype=torch.float32).cuda()
+    if not skip_energy_calculation:
+        J = torch.tensor(J, dtype=torch.float32).cuda()
+        h = torch.tensor(h, dtype=torch.float32).cuda()
 
     # compute the energy of the initial state
     spin_vector = torch.sign(x_vector)     # σ ∈ {-1, 1}
     qubo_bits = (spin_vector + 1) / 2       # q ∈ {0, 1}
-    current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
-
     bits_history = [qubo_bits.cpu().numpy().astype(bool)]
-    e_history = [current_energy.cpu().numpy().astype(np.float32)]
+
+    if not skip_energy_calculation:
+        current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
+        e_history = [current_energy.cpu().numpy().astype(np.float32)]
+    else:
+        e_history = []
 
     print('Running simulation...')
     try:
@@ -284,7 +289,7 @@ def solve_isingmachine_gpu(
         progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
             # break if we are close enough to the target energy
-            if early_break and target_energy and torch.any(torch.abs(current_energy - target_energy) < 1e-3):
+            if early_break and target_energy and not skip_energy_calculation and torch.any(torch.abs(current_energy - target_energy) < 1e-3):
                 break
 
             # compute the next state of the system
@@ -300,13 +305,16 @@ def solve_isingmachine_gpu(
             if t % save_iter_freq == 0: # do CPU stuff: record history, update progress bar
                 spin_vector = torch.sign(x_vector)     # σ ∈ {-1, 1}
                 qubo_bits = (spin_vector + 1) / 2       # q ∈ {0, 1}
-                current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
-                e_history.append(current_energy.cpu().numpy().astype(np.float32))
+                if not skip_energy_calculation:
+                    current_energy = torch.einsum('ijk,ijk->ij', spin_vector, torch.einsum('ij,lmj->lmi', J, spin_vector)) + torch.einsum('k,ijk->ij', h, spin_vector) + e_offset
+                    e_history.append(current_energy.cpu().numpy().astype(np.float32))
                 bits_history.append(qubo_bits.cpu().numpy().astype(bool))
-                if target_energy:
-                    progress_bar.set_description(f"energy: {current_energy.min().item():.1f} / {target_energy:.1f}")
-                else:
-                    progress_bar.set_description(f"energy: {current_energy.min().item():.1f}")
+                if not skip_energy_calculation:
+                    if target_energy:
+                        progress_bar.set_description(f"energy: {current_energy.min().item():.1f} / {target_energy:.1f}")
+                    else:
+                        progress_bar.set_description(f"energy: {current_energy.min().item():.1f}")
+                
         print(f'Done.')
     except KeyboardInterrupt: # allow user to interrupt the simulation
         print(f'Interrupted.')
