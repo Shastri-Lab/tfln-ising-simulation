@@ -1,3 +1,15 @@
+# project files
+cim-simulations/ising_checkerboard_frames
+*.tar.gz
+todo
+# folding-lattice-proteins/mat_files
+folding-lattice-proteins/main.py
+misc/
+ising_protein_S*
+ising_protein_folding_nayem.py
+
+# python
 __pycache__
 
-cim-simulations/ising_checkerboard_frames
+# macOS
+.DS_Store
