@@ -1,0 +1,19 @@
+% Define the J and h matrices for Full Adder and AND gate
+J_full_adder = [0 -1 -1 1 2;
+               -1  0 -1 1 2;
+               -1 -1  0 1 2;
+                1  1  1 0 -2;
+                2  2  2 -2 0];
+
+h_full_adder = [0; 0; 0; 0; 0];
+
+J_and_gate = [ 0 -1 2;
+              -1  0 2;
+               2  2 0];
+
+h_and_gate = [1; 1; -2];
+
+J = [0 -1 2 
+     -1 0 2
+      2 2 0
+      0 0  ]
