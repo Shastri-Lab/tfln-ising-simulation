@@ -7,11 +7,12 @@ if __name__ == '__main__':
         latdim=(3,4),
         lambdas=(2.1, 2.4, 3.0),
         ),
-    num_iterations=1000,
-    num_ics=1500,
-    alphas=None,
-    betas=(0.005, 0.0075, 0.01, 0.025), 
-    noise_std=0.2,
+    num_iterations=2000,
+    num_ics=1,
+    alphas=(1),
+    betas=(0.005, 0.01,0.05,0.1,0.5),
+    noise_std=0.1,
     is_plotting=True,
     is_saving=False,
     )
+

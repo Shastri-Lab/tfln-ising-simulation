@@ -6,7 +6,10 @@ import os.path as path
 import matplotlib.pyplot as plt
 from hp_lattice import Lattice_HP_QUBO
 from dimod.utilities import qubo_to_ising
-from ising_machine import solve_isingmachine, solve_isingmachine_gpu
+from ising_machine import  solve_isingmachine_gpu
+# from ising_machine import solve_isingmachine_analytic_gradients as solve_isingmachine
+from ising_machine_jax import solve_isingmachine
+
 from dwave_to_isingmachine import (
     J_dict_to_mat,
     h_dict_to_mat,
@@ -78,7 +81,9 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
     min_energy_idx_flat = np.argmin(final_energies)
     min_energy_idx = np.unravel_index(min_energy_idx_flat, final_energies.shape)
     min_energy = final_energies[min_energy_idx]
-    min_qubo_bits = qubo_bits[*min_energy_idx, :]
+    print(qubo_bits.shape,min_energy_idx,(*min_energy_idx,))
+
+    min_qubo_bits = qubo_bits[(*min_energy_idx,)]
     min_energy_alpha, min_energy_beta = alpha_beta[min_energy_idx[0]]
     print(f'Minimum bits has sum: {min_qubo_bits.sum()}')
 
@@ -115,7 +120,7 @@ def plot_hp_convergence_old(model, e_history, qubo_bits, alpha_beta, target_ener
     min_energy_idx_flat = np.argmin(final_energies)
     min_energy_idx = np.unravel_index(min_energy_idx_flat, final_energies.shape)
     min_energy = final_energies[min_energy_idx]
-    min_qubo_bits = qubo_bits[*min_energy_idx, :]
+    min_qubo_bits = qubo_bits[(*min_energy_idx,)]
     min_energy_alpha, min_energy_beta = alpha_beta[min_energy_idx[0]]
     
     ax[1].set_title(f'Final Lattice Configuration (α = {min_energy_alpha:.1e} β = {min_energy_beta:.1e}, E = {min_energy:.1f})')
@@ -225,6 +230,8 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         simulated_annealing=simulated_annealing,
         desired_num_up=None if not adjust_mean else model.len_of_seq,
     )
+    print(qubo_bits)
+    print(qubo_bits.shape)
 
     if is_plotting:
         plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, target_energy)
