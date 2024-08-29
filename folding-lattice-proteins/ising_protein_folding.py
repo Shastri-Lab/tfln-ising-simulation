@@ -7,8 +7,10 @@ import matplotlib.pyplot as plt
 from hp_lattice import Lattice_HP_QUBO
 from dimod.utilities import qubo_to_ising
 from ising_machine import  solve_isingmachine_gpu
+# from ising_machine import solve_isingmachine as solve_isingmachine
+# from ising_machine import solve_isingmachine_analytic_cos1 as solve_isingmachine
 # from ising_machine import solve_isingmachine_analytic_gradients as solve_isingmachine
-from ising_machine_jax import solve_isingmachine
+from ising_machine_jax import solve_isingmachine_adam_Gibbs as solve_isingmachine
 
 from dwave_to_isingmachine import (
     J_dict_to_mat,
@@ -37,7 +39,7 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
 
     ax.set_title('Ising Energy')
     if target_energy is not None:
-        ax.axhline(target_energy, color='k', linestyle=(0, (1, 1)))
+        ax.axhline(np.log(20.0 + target_energy), color='k', linestyle=(0, (1, 1)))
     
     # e_history has shape (T, B, I) or (T, 4, B, I) if energies are separated
     other_energies = []
@@ -52,6 +54,7 @@ def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, targ
     else:
         total_energy_hist = e_history
 
+    total_energy_hist = np.log(total_energy_hist + 20)
     num_ics = total_energy_hist.shape[2]
     iters = list(range(total_energy_hist.shape[0]))
     for i, (alpha, beta) in enumerate(alpha_beta):
