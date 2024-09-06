@@ -10,7 +10,7 @@ from ising_machine import  solve_isingmachine_gpu
 # from ising_machine import solve_isingmachine as solve_isingmachine
 # from ising_machine import solve_isingmachine_analytic_cos1 as solve_isingmachine
 # from ising_machine import solve_isingmachine_analytic_gradients as solve_isingmachine
-from ising_machine_jax import solve_isingmachine_adam_Gibbs as solve_isingmachine
+from ising_machine_jax import solve_isingmachine_adam as solve_isingmachine
 
 from dwave_to_isingmachine import (
     J_dict_to_mat,

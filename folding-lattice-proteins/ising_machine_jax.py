@@ -8,6 +8,8 @@ import jax
 
 def sigma(x):  # return np.tanh(ROOT2*x)
     return -1 + 2 * npa.cos(pi / 4 * (x - 1)) ** 2  # 0.5*sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
+def sigma(x):  # return np.tanh(ROOT2*x)
+    return npa.tanh(2 * x)
 
 
 def solve_isingmachine_adam_Gibbs(
@@ -91,6 +93,12 @@ def solve_isingmachine_adam_Gibbs(
     mopt = np.zeros(x_vector.shape)
     vopt = np.zeros(x_vector.shape)
 
+    xdum = np.zeros((1,1,h.shape[0]))
+    moptdum = np.zeros_like(xdum)
+    voptdum = np.zeros_like(xdum)
+    bdum = np.zeros((1,h.shape[0]))
+    noisesdum = np.zeros((1,num_spins,num_spins))
+
     @jax.jit
     def step_adam(gradient, mopt_old, vopt_old, iteration, beta1=0.9, beta2=0.999, epsilon=1e-8):
         """ Performs one step of adam optimization"""
@@ -104,6 +112,7 @@ def solve_isingmachine_adam_Gibbs(
     def Gibbs(x_vector,mopt,vopt,iteration,b, noises):
         for k in range(x_vector.shape[-1]):
             noise = noises[:,:,k]
+            # print(noises.shape)
             x_noise = x_vector + noise
             gradient = gradH(x_noise)
             (grad_adam, mopt_, vopt_) = step_adam(gradient[:, :, k], mopt[:, :, k], vopt[:, :, k],
@@ -126,6 +135,8 @@ def solve_isingmachine_adam_Gibbs(
     print('Running simulation...')
     iteration = 0
     gradH = jax.jit(grad(hamiltonian))
+    # Gibbs(xdum, moptdum, voptdum, 0, bdum, noisesdum)
+    # print("here")
     try:
         desc = f'target energy: {target_energy:.1f}' if target_energy else ''
         progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
@@ -135,7 +146,7 @@ def solve_isingmachine_adam_Gibbs(
                 break
             # compute the next state of the system
             noises = np.random.normal(0, noise_std, (num_ics, num_spins,x_vector.shape[-1]))
-            x_vector,mopt,vopt = Gibbs(x_vector,mopt,vopt,iteration,b,noises)
+            output,mopt,vopt = Gibbs(x_vector,mopt,vopt,iteration,b,noises)
 
             # compute the energy of the next state
             spin_vector = np.sign(x_vector)  # σ ∈ {-1, 1}
@@ -144,10 +155,12 @@ def solve_isingmachine_adam_Gibbs(
                                        np.einsum('ij,lmj->lmi', J, spin_vector)) + np.einsum('k,ijk->ij', h,
                                                                                              spin_vector) + e_offset
 
+
             min_energy_idx_flat = np.argmin(current_energy)
             min_energy_idx = np.unravel_index(min_energy_idx_flat, current_energy.shape)
             min_energy = current_energy[min_energy_idx]
             min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
+
 
             iteration += 1
             noise_std /= 1.01
@@ -213,7 +226,7 @@ def solve_isingmachine_adam(
     print(J.shape)
 
     def hamiltonian(x):
-        spin_vector = sigma(x)
+        spin_vector = npa.tanh(5 * sigma(x))
         return npa.sum(npa.einsum('ijk,ijk->ij', spin_vector,
                           npa.einsum('ij,lmj->lmi', J, spin_vector)) + npa.einsum('k,ijk->ij', h,
                                                                                 spin_vector) + e_offset)
@@ -256,21 +269,24 @@ def solve_isingmachine_adam(
     e_history.append(current_energy.astype(np.float32))
 
     temperature = 10.0
+    t_scale = 0.999
+    last_energy = current_energy
 
     mopt = np.zeros(x_vector.shape)
     vopt = np.zeros(x_vector.shape)
 
+    # @jax.jit
     def step_adam(gradient, mopt_old, vopt_old, iteration, beta1=0.9, beta2=0.999, epsilon=1e-8):
         """ Performs one step of adam optimization"""
         mopt = beta1 * mopt_old + (1 - beta1) * gradient
         mopt_t = mopt / (1 - beta1 ** (iteration + 1))
-        vopt = beta2 * vopt_old + (1 - beta2) * (np.square(gradient))
+        vopt = beta2 * vopt_old + (1 - beta2) * (npa.square(gradient))
         vopt_t = vopt / (1 - beta2 ** (iteration + 1))
-        grad_adam = mopt_t / (np.sqrt(vopt_t) + epsilon)
+        grad_adam = mopt_t / (npa.sqrt(vopt_t) + epsilon)
         return (grad_adam, mopt, vopt)
-
     print('Running simulation...')
     iteration = 0
+    gradH = jax.jit(grad(hamiltonian))
     try:
         desc = f'target energy: {target_energy:.1f}' if target_energy else ''
         progress_bar = tqdm(range(num_iterations), dynamic_ncols=True, desc=desc)
@@ -280,9 +296,11 @@ def solve_isingmachine_adam(
                 break
             # compute the next state of the system
             noise[:] = np.random.normal(0, noise_std, (num_ics, num_spins))
-            noise_std /= 1.0001
+            if iteration % 200 == 0:
+                noise_std /= 1.5
             x_noise = x_vector + noise
-            gradient = grad(hamiltonian)(x_noise)
+
+            gradient = gradH(x_noise)
             (grad_adam, mopt, vopt) = step_adam(gradient, mopt, vopt, iteration)
             iteration += 1
             gradientscaled = np.einsum(
@@ -307,7 +325,18 @@ def solve_isingmachine_adam(
             min_energy = current_energy[min_energy_idx]
             min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
 
-            x_vector = output
+            if simulated_annealing:
+                # compare the current energy to the last energy
+                delta_e = current_energy - last_energy
+                acceptance_prob = np.exp(-delta_e / temperature)
+                random_numbers = np.random.rand(*acceptance_prob.shape)
+                accept = random_numbers < acceptance_prob
+                x_vector[accept, :] = output[accept, :]
+                temperature *= t_scale
+                # print("DE",delta_e,acceptance_prob,temperature)
+
+            else:
+                x_vector = output
 
             # record the history
             spin_vector = np.sign(x_vector)  # σ ∈ {-1, 1}
