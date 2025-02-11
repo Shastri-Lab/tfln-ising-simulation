@@ -1,4 +1,6 @@
 # project files
+hopfield
+cim-simulations
 cim-simulations/ising_checkerboard_frames
 *.tar.gz
 todo
