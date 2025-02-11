@@ -78,7 +78,7 @@ def print_final_energies(final_energies, betas, target_energy):
         energy = [round(e, 1) for e in energy]
         print(f'β = {beta:.1e}: E = {sum(energy):.1f} {energy}')
 
-def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, early_break=True, is_plotting=True, is_saving=True, simulated_annealing=False, make_symmetric=False, sparse=False):
+def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, early_break=True, is_plotting=True, is_saving=True, simulated_annealing=False, annealing_iters=1, annealing_fraction=1.0, make_symmetric=False, sparse=False):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
     print('Coverting QUBO to Ising...')
     save_mat_file(model)
@@ -101,6 +101,8 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         betas=betas,
         noise_std=noise_std,
         simulated_annealing=simulated_annealing,
+        annealing_iters=annealing_iters,
+        annealing_fraction=annealing_fraction,
         make_symmetric=make_symmetric,
         sparse=sparse,
         early_break=early_break,

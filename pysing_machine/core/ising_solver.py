@@ -22,6 +22,8 @@ class SolverConfig:
     noise_std: float = 0.1
     early_break: bool = True
     simulated_annealing: bool = False
+    annealing_iters: int = 1
+    annealing_fraction: float = 1.0
     start_temperature: float = 10.0
     make_symmetric: bool = False
     sparse: bool = False
@@ -206,9 +208,10 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
         progress_bar = tqdm(range(config.num_iterations-1), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
             if config.simulated_annealing:
-                if t % 200 == 0:
+                if t % config.annealing_iters == 0 and t != 0:
                     # std = max(0.01, std - delta_t)
-                    std /= 1.5 # TODO: annealing schedule config should use data class configuration too, this is weird.
+                    # std /= 1.5 # TODO: annealing schedule config should use data class configuration too, this is weird.
+                    std *= config.annealing_fraction
 
             # break if we are close enough to the target energy
             if config.early_break and config.target_energy and np.any(np.abs(current_energy - config.target_energy) < 1e-3):
@@ -231,7 +234,7 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
             
 
             if config.target_energy:
-                progress_bar.set_description(f"energy: {current_energy.min():.1f} / {config.target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}")
+                progress_bar.set_description(f"energy: {current_energy.min():.1f} / {config.target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}, noise std: {std:.2f}")
             else:
                 progress_bar.set_description(f"energy: {current_energy.min():.1f}")
         print(f'Done.')
