@@ -13,13 +13,11 @@ class IsingProblem:
 
 @dataclass
 class SolverConfig:
-    target_energy: float = None
-    num_iterations: int = 250_000
-    num_ics: int = 2
-    ic_range: float = 0.25
     alphas: np.ndarray = None
     betas: float = 0.01
-    noise_std: float = 0.1
+    num_ics: int = 1
+    ic_range: float = 0.5
+    num_iterations: int = 10_000
     early_break: bool = True
     target_energy: float = None
     
@@ -33,7 +31,7 @@ class SolverConfig:
     bit_precision: int = None
 
 @dataclass
-class SovlerResults:
+class SolverResults:
     final_vector: np.ndarray
     spin_bits_history: np.ndarray
     energy_history: np.ndarray
@@ -55,22 +53,23 @@ def quadratic_matmul(J, x, sparse=False):
     #             J.toarray(), x,
     #             ),
     #         )
-    if sparse:
+    if sparse: # TODO: double loop is super slow
         out = np.zeros((x.shape[0], x.shape[1]))
-        sparse_J = csr_matrix(J)
+        sparse_J = csr_matrix(J) # TODO: we shouldn't be doing this every iteration, we should have this already sparse if the flag is set
         for i in range(x.shape[0]): # batch dim (betas)
             for j in range(x.shape[1]): # ics dim
                 out[i, j] = x[i, j].T @ sparse_J @ x[i, j]
         return out
     else:
-        return np.einsum(
-            'ijk,ijk->ij',
-            x,
-            np.einsum(
-                'ij,lmj->lmi',
-                J, x,
-                ),
-            )
+        return np.einsum('ij,ihj,ihj->ih', J, x, x) # this is apparently an optimization of the below?
+        # return np.einsum( # TODO: dense einsum is inefficient: np.einsum('ij,lmj->lmi', J, x) is unnecessary when J is dense, x @ J @ x.T would be faster.
+        #     'ijk,ijk->ij',
+        #     x,
+        #     np.einsum(
+        #         'ij,lmj->lmi',
+        #         J, x,
+        #         ),
+        #     )
 
 def linear_matmul(h, x):
     return np.einsum(
@@ -80,7 +79,7 @@ def linear_matmul(h, x):
 
 def calculate_energy(*pars, spins=None, sparse=False): # TODO: compare to energy calculated from X instead of sigma(X)
     energy = 0
-    for J, h, e in pars:
+    for J, h, e in pars: # TODO: the looping here is weird, we should be able to do this in one go?
         energy += quadratic_matmul(J, spins, sparse=sparse) + linear_matmul(h, spins) + e
     return energy
 
@@ -169,12 +168,14 @@ def update_state(W, x_in, output, sparse=False):
     num_spins = x_in.shape[2] # check if AI got this right
     
     if sparse: # probably not optimal to sparse-ify the matrix every iteration
-        i, j, k = W.shape
-        _, h, _ = x_in.shape
-        for idx in range(i): # iterate over batch dimension (different betas)
-            W_sparse = csr_matrix(W[idx])  # W[idx] is shape (j, k)
-            sigma_x_in = sigma(x_in[idx])  # sigma_x_in is shape (h, k)
-            output[idx] = W_sparse.dot(sigma_x_in.T).T # sparse matmul: result is shape (h, j)
+        # i, j, k = W.shape
+        # _, h, _ = x_in.shape
+        # for idx in range(i): # iterate over batch dimension (different betas)
+        #     W_sparse = csr_matrix(W[idx])  # W[idx] is shape (j, k)
+        #     sigma_x_in = sigma(x_in[idx])  # sigma_x_in is shape (h, k)
+        #     output[idx] = W_sparse.dot(sigma_x_in.T).T # sparse matmul: result is shape (h, j)
+        for i in range(W.shape[0]): # TODO: check that this optimization produces the same result
+            output[i] = csr_matrix(W[i]) @ sigma(x_in[i]).T
     else:
         np.einsum(
             'ijk,ihk->ihj',
@@ -271,7 +272,7 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
 
     if config.early_break and config.target_energy and success is None:
         success = False
-    return SovlerResults(
+    return SolverResults(
         final_vector=x_vector,
         spin_bits_history=bits_history,
         energy_history=np.array(e_history),
