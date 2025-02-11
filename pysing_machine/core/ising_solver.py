@@ -27,6 +27,7 @@ class SolverConfig:
     start_temperature: float = 10.0
     make_symmetric: bool = False
     sparse: bool = False
+    bit_precision: int = None
 
 @dataclass
 class SovlerResults:
@@ -91,6 +92,19 @@ def get_param_grid(config: SolverConfig):
         alpha_beta = np.stack(np.meshgrid(alphas, betas), axis=-1).reshape(-1, 2)
     
     config.alpha_beta = alpha_beta
+
+def quantize_matrix(M, bit_precision):
+    """Quantize M to `bit_precision` bits with dynamic range scaling."""
+    if bit_precision is None:
+        return M # use full precision if bit_precision is None
+    min_val, max_val = np.min(M), np.max(M)
+    if max_val == min_val:  # avoid division by zero
+        return M  # no quantization needed if all values are the same
+    
+    levels = 2 ** bit_precision
+    M_scaled = (M - min_val) / (max_val - min_val)  # scale to [0, 1]
+    M_discrete = np.round(M_scaled * levels) / levels  # quantize
+    return min_val + M_discrete * (max_val - min_val)  # scale back
 
 def initialize_problem(problem: IsingProblem, config: SolverConfig):
     J, h, e_offset = problem.J, problem.h, problem.e_offset
@@ -189,6 +203,9 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
     success = None
     num_spins, num_pars, W, x_vector, output, noise, prepare_input = \
         initialize_problem(problem, config)
+    W = quantize_matrix(W, config.bit_precision)
+    x_vector = quantize_matrix(x_vector, config.bit_precision)
+    output = quantize_matrix(output, config.bit_precision)
 
     # compute the energy of the initial state
     spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
@@ -221,7 +238,7 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
             # compute the next state of the system
             noise[:] = np.random.normal(0, std, (config.num_ics, num_spins))
             update_state(W, prepare_input(x_vector+noise), output, sparse=config.sparse)
-            x_vector = output
+            x_vector = quantize_matrix(output, config.bit_precision)
 
             # record the history
             spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
