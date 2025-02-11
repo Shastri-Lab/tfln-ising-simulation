@@ -88,6 +88,10 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
     J = J_dict_to_mat(J_dict, model.keys)
     ising_e_offset += model.Lambda[0]*model.len_of_seq
 
+
+    def modified_exp_schedule(t):
+        return noise_std * annealing_fraction**(t//annealing_iters)
+
     problem = IsingProblem(
         J=J,
         h=h,
@@ -99,10 +103,9 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         num_ics=num_ics,
         alphas=alphas,
         betas=betas,
-        noise_std=noise_std,
-        simulated_annealing=simulated_annealing,
-        annealing_iters=annealing_iters,
-        annealing_fraction=annealing_fraction,
+        start_temperature=noise_std,
+        annealing_schedule="custom",
+        custom_schedule=modified_exp_schedule,
         make_symmetric=make_symmetric,
         sparse=sparse,
         early_break=early_break,

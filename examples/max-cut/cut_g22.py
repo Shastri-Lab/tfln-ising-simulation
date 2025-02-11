@@ -71,7 +71,7 @@ def cut_graph(
         num_ics=100,
         alphas=None,
         betas=(0.1,),
-        noise_std=0.1,
+        noise_std=0.5,
         simulated_annealing=False,
         early_break=True,
         sparse=False,
@@ -86,6 +86,9 @@ def cut_graph(
     h = np.zeros(num_spins)
     e_offset = 0
 
+    def annealing_schedule(t):
+        return noise_std * 0.95**(t//10)
+
     problem = IsingProblem(J=J, h=h)
     config = SolverConfig(
         target_energy=min_energy,
@@ -93,8 +96,9 @@ def cut_graph(
         num_ics=num_ics,
         alphas=alphas,
         betas=betas,
-        noise_std=noise_std,
-        simulated_annealing=simulated_annealing,
+        start_temperature=noise_std,
+        annealing_schedule="custom",
+        custom_schedule=annealing_schedule, 
         early_break=early_break,
         sparse=sparse,
     )

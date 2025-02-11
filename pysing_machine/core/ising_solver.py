@@ -21,10 +21,13 @@ class SolverConfig:
     betas: float = 0.01
     noise_std: float = 0.1
     early_break: bool = True
-    simulated_annealing: bool = False
-    annealing_iters: int = 1
-    annealing_fraction: float = 1.0
-    start_temperature: float = 10.0
+    target_energy: float = None
+    
+    annealing_schedule: str = 'exponential'
+    annealing_rate: float = 0.1
+    custom_schedule: callable = None
+    start_temperature: float = 1.0
+    
     make_symmetric: bool = False
     sparse: bool = False
     bit_precision: int = None
@@ -182,6 +185,20 @@ def update_state(W, x_in, output, sparse=False):
 
     output /= np.max(np.abs(output), axis=-1, keepdims=True)
 
+def get_annealing_temperature(t, config):
+    if config.annealing_schedule == None or config.annealing_schedule == "constant":
+        return config.start_temperature
+    elif config.annealing_schedule == "exponential":
+        return config.start_temperature * np.exp(-config.annealing_rate * t)
+    elif config.annealing_schedule == "linear":
+        return max(0.01, config.start_temperature - config.annealing_rate * t)
+    elif config.annealing_schedule == "logarithmic":
+        return config.start_temperature / (1 + config.annealing_rate * np.log(1 + t))
+    elif config.annealing_schedule == "custom" and config.custom_schedule is not None:
+        return config.custom_schedule(t)
+    else:
+        raise ValueError(f"Unknown annealing schedule: {config.annealing_schedule}")
+
 def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
     """
     Solve an Ising problem defined by J and h using the coherent Ising machine model.
@@ -215,20 +232,13 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
 
     bits_history = [qubo_bits.astype(bool)] # save only the bits to save memory
     e_history = [current_energy.astype(np.float32)]
-    
-    std = config.noise_std
-    delta_t = config.noise_std / config.num_iterations # TODO: add possibility for more annealing schedules
 
     print('Running simulation...')
     try:
         desc = f'target energy: {config.target_energy:.1f}' if config.target_energy else ''
         progress_bar = tqdm(range(config.num_iterations-1), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
-            if config.simulated_annealing:
-                if t % config.annealing_iters == 0 and t != 0:
-                    # std = max(0.01, std - delta_t)
-                    # std /= 1.5 # TODO: annealing schedule config should use data class configuration too, this is weird.
-                    std *= config.annealing_fraction
+            std = get_annealing_temperature(t, config)
 
             # break if we are close enough to the target energy
             if config.early_break and config.target_energy and np.any(np.abs(current_energy - config.target_energy) < 1e-3):
