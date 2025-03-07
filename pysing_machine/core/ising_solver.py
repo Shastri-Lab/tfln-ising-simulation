@@ -18,6 +18,7 @@ class SolverConfig:
     num_ics: int = 1
     ic_range: float = 0.5
     num_iterations: int = 10_000
+    
     early_break: bool = True
     target_energy: float = None
     
@@ -35,13 +36,14 @@ class SolverResults:
     final_vector: np.ndarray
     spin_bits_history: np.ndarray
     energy_history: np.ndarray
-    success: bool
+    success: np.ndarray
 
 
 ROOT2 = np.sqrt(2)
-def sigma(x): # return np.tanh(ROOT2*x)
+def sigma(x): 
     # return -1 + 2*np.cos(pi/4 * (x-1))**2 # 0.5*sin(pi/2 * x) # equiv to: -1 + 2*np.cos(pi/4 * (x-1))**2
-    return sin(pi * x / 2)
+    return np.tanh(pi * x / 2) # slope matches sin(pi * x / 2) at x=0, but has no problems when x is large
+    # return sin(pi * x / 2)
 
 def quadratic_matmul(J, x, sparse=False):
     # if issparse(J):
@@ -61,15 +63,15 @@ def quadratic_matmul(J, x, sparse=False):
                 out[i, j] = x[i, j].T @ sparse_J @ x[i, j]
         return out
     else:
-        return np.einsum('ij,ihj,ihj->ih', J, x, x) # this is apparently an optimization of the below?
-        # return np.einsum( # TODO: dense einsum is inefficient: np.einsum('ij,lmj->lmi', J, x) is unnecessary when J is dense, x @ J @ x.T would be faster.
-        #     'ijk,ijk->ij',
-        #     x,
-        #     np.einsum(
-        #         'ij,lmj->lmi',
-        #         J, x,
-        #         ),
-        #     )
+        # return np.einsum('ij,ihj,ihj->ih', J, x, x) # this is apparently an optimization of the below? Doesn't work, but let's figure out later
+        return np.einsum( # TODO: dense einsum is inefficient: np.einsum('ij,lmj->lmi', J, x) is unnecessary when J is dense, x @ J @ x.T would be faster.
+            'ijk,ijk->ij',
+            x,
+            np.einsum(
+                'ij,lmj->lmi',
+                J, x,
+                ),
+            )
 
 def linear_matmul(h, x):
     return np.einsum(
@@ -80,7 +82,10 @@ def linear_matmul(h, x):
 def calculate_energy(*pars, spins=None, sparse=False): # TODO: compare to energy calculated from X instead of sigma(X)
     energy = 0
     for J, h, e in pars: # TODO: the looping here is weird, we should be able to do this in one go?
-        energy += quadratic_matmul(J, spins, sparse=sparse) + linear_matmul(h, spins) + e
+        energy += quadratic_matmul(J, spins, sparse=sparse)
+        if h is not None:
+            energy += linear_matmul(h, spins)
+        energy += e
     return energy
 
 def get_param_grid(config: SolverConfig):
@@ -95,18 +100,33 @@ def get_param_grid(config: SolverConfig):
     
     config.alpha_beta = alpha_beta
 
-def quantize_matrix(M, bit_precision):
-    """Quantize M to `bit_precision` bits with dynamic range scaling."""
+def quantize_matrix(M, bit_precision, axis, min_val=None, max_val=None):
+    
+    """Quantize M to `bit_precision` bits with dynamic range scaling.
+    
+    If M has shape (num_parameters, N, N), each (N, N) matrix is quantized separately.
+    If M has shape (num_parallel_runs, num_parameters, N), each (1, N) row is quantized separately.
+    """
+    # breakpoint() # currently working without this, so we shoudln't get into this function
     if bit_precision is None:
         return M # use full precision if bit_precision is None
-    min_val, max_val = np.min(M), np.max(M)
-    if max_val == min_val:  # avoid division by zero
-        return M  # no quantization needed if all values are the same
-    
-    levels = 2 ** bit_precision
-    M_scaled = (M - min_val) / (max_val - min_val)  # scale to [0, 1]
-    M_discrete = np.round(M_scaled * levels) / levels  # quantize
-    return min_val + M_discrete * (max_val - min_val)  # scale back
+
+    min_arr_val = np.min(M, axis=axis, keepdims=True)
+    max_arr_val = np.max(M, axis=axis, keepdims=True)
+    min_val = min_val * np.ones_like(min_val) if min_val is not None else min_arr_val
+    max_val = max_val * np.ones_like(max_val) if max_val is not None else max_arr_val
+
+    # Avoid division by zero where min_val == max_val
+    no_range_mask = (max_val == min_val)
+
+    levels = 2 ** bit_precision - 1 # minus 1 because we want to include the min and max values
+
+    # Scale, quantize, and re-scale back, only for non-zero-range values
+    M_scaled = np.where(no_range_mask, M, (M - min_val) / (max_val - min_val))
+    M_discrete = np.round(M_scaled * levels) / levels
+    M_quantized = np.where(no_range_mask, M, min_val + M_discrete * (max_val - min_val))
+
+    return M_quantized
 
 def initialize_problem(problem: IsingProblem, config: SolverConfig):
     J, h, e_offset = problem.J, problem.h, problem.e_offset
@@ -130,10 +150,14 @@ def initialize_problem(problem: IsingProblem, config: SolverConfig):
         b = np.zeros((num_pars, num_spins))
     else:
         b = None
+
+    J_max = np.max(np.abs(J))
+    if J_max == 0:
+        raise ValueError("J has all zeros, cannot normalize.")
     for i, (alpha, beta) in enumerate(config.alpha_beta):
-        W[i, :, :] = alpha * np.eye(num_spins) - beta * J / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+        W[i, :, :] = alpha * np.eye(num_spins) - beta * J / J_max  # normalize beta by the maximum coupling strength
         if h is not None:
-            b[i, :] = -beta * h / np.max(np.abs(J))  # normalize beta by the maximum coupling strength
+            b[i, :] = -beta * h / J_max  # normalize beta by the maximum coupling strength
     
     # incorporate bias term into iteration matrix
     if b is not None:
@@ -164,7 +188,7 @@ def find_min_energy_index(current_energy, qubo_bits):
     min_qubo_bits = qubo_bits[min_energy_idx[0], min_energy_idx[1], :]
     return min_energy_idx, min_energy, min_qubo_bits
 
-def update_state(W, x_in, output, sparse=False):
+def update_state(W, x_in, output, sparse=False, bit_precision=None):
     num_spins = x_in.shape[2] # check if AI got this right
     
     if sparse: # probably not optimal to sparse-ify the matrix every iteration
@@ -176,6 +200,13 @@ def update_state(W, x_in, output, sparse=False):
         #     output[idx] = W_sparse.dot(sigma_x_in.T).T # sparse matmul: result is shape (h, j)
         for i in range(W.shape[0]): # TODO: check that this optimization produces the same result
             output[i] = csr_matrix(W[i]) @ sigma(x_in[i]).T
+    elif bit_precision is not None:
+        np.einsum(
+            'ijk,ihk->ihj',
+            W,
+            quantize_matrix(sigma(x_in), bit_precision, (2,), max_val=1, min_val=-1),
+            out=output,
+        )
     else:
         np.einsum(
             'ijk,ihk->ihj',
@@ -205,67 +236,75 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
     Solve an Ising problem defined by J and h using the coherent Ising machine model.
 
     Args:
-        J (np.ndarray): Coupling matrix.
-        h (np.ndarray): Field vector.
-        e_offset (float): Energy offset.
-        target_energy (float): Target energy for early stopping.
-        num_iterations (int): Number of iterations.
-        num_ics (int): Number of initial conditions.
-        alphas (np.ndarray): Decay rates.
-        betas (np.ndarray): Learning rates.
-        noise_std (float): Standard deviation of the noise.
-        early_break (bool): Whether to stop early if the target energy is reached.
-        simulated_annealing (bool): Whether to use simulated annealing acceptance criterion.
+        problem (IsingProblem): A dataclass containing the definition of the Ising problem via a J matrix and an h vector.
+        config (SolverConfig): A dataclass containing all the configuration options for the core Ising machine solver.
     
     """
     success = None
     num_spins, num_pars, W, x_vector, output, noise, prepare_input = \
         initialize_problem(problem, config)
-    W = quantize_matrix(W, config.bit_precision)
-    x_vector = quantize_matrix(x_vector, config.bit_precision)
-    output = quantize_matrix(output, config.bit_precision)
+    if config.bit_precision is not None: # TODO: not really necessary because it's handled in quantize_matrix
+        W = quantize_matrix(W, config.bit_precision, (1,2), max_val=1, min_val=-1)
+        x_vector = quantize_matrix(x_vector, config.bit_precision, (2,), max_val=1, min_val=-1)
+        output = quantize_matrix(output, config.bit_precision, (2,), max_val=1, min_val=-1)
 
     # compute the energy of the initial state
     spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
-    qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+    qubo_bits = ((spin_vector+1)/2).astype(bool)       # q ∈ {0, 1}
     current_energy = calculate_energy((problem.J, problem.h, problem.e_offset), spins=spin_vector)
-    min_energy_idx, min_energy, min_qubo_bits = find_min_energy_index(current_energy, qubo_bits)
 
-    bits_history = [qubo_bits.astype(bool)] # save only the bits to save memory
+    bits_history = [qubo_bits] # save only the bits to save memory
     e_history = [current_energy.astype(np.float32)]
 
-    print('Running simulation...')
+    # initialize a matrix to store success flag for each of the parallel runs
+    success = np.zeros_like(current_energy, dtype=bool)
+    target_energy = config.target_energy or -np.inf
+
     try:
         desc = f'target energy: {config.target_energy:.1f}' if config.target_energy else ''
         progress_bar = tqdm(range(config.num_iterations-1), dynamic_ncols=True, desc=desc)
         for t in progress_bar:
             std = get_annealing_temperature(t, config)
 
+            # check if each of the parallel runs have already reached the target energy
+            success = np.logical_or(success, np.abs(current_energy - target_energy) < 1e-5)
+
             # break if we are close enough to the target energy
-            if config.early_break and config.target_energy and np.any(np.abs(current_energy - config.target_energy) < 1e-3):
-                success = True
+            if config.early_break and np.any(success):
                 break
 
             # compute the next state of the system
             noise[:] = np.random.normal(0, std, (config.num_ics, num_spins))
-            update_state(W, prepare_input(x_vector+noise), output, sparse=config.sparse)
-            x_vector = quantize_matrix(output, config.bit_precision)
+            update_state(W, prepare_input(x_vector+noise), output, sparse=config.sparse, bit_precision=config.bit_precision)
+            if config.bit_precision is not None: # TODO: not really necessary because it's handled in quantize_matrixs
+                x_vector = quantize_matrix(output, config.bit_precision, (2,), max_val=1, min_val=-1)
+            else:
+                x_vector = np.clip(output, -1, 1) # TODO: I think this can be removed because update_state normalizes the output to max(abs(output))=1
+
 
             # record the history
-            spin_vector = np.sign(x_vector)     # σ ∈ {-1, 1}
-            qubo_bits = (spin_vector+1)/2       # q ∈ {0, 1}
+            spin_vector = np.sign(x_vector)                 # σ ∈ {-1, 1}
+            qubo_bits = ((spin_vector+1)/2).astype(bool)    # q ∈ {0, 1}
 
             current_energy = calculate_energy((problem.J, problem.h, problem.e_offset), spins=spin_vector, sparse=config.sparse)
             e_history.append(current_energy.astype(np.float32))
-            min_energy_idx, min_energy, min_qubo_bits = find_min_energy_index(current_energy, qubo_bits)
-            bits_history.append(qubo_bits.astype(bool))
+            bits_history.append(qubo_bits)
             
+            if t % 1 == 0: # update progress bar every 10 iterations
+                _, _, min_qubo_bits = find_min_energy_index(current_energy, qubo_bits)
+                update_str = f"energy: {current_energy.min():.1f}"
 
             if config.target_energy:
-                progress_bar.set_description(f"energy: {current_energy.min():.1f} / {config.target_energy:.1f}, num up: {int(np.sum(min_qubo_bits))}, noise std: {std:.2f}")
-            else:
-                progress_bar.set_description(f"energy: {current_energy.min():.1f}")
-        print(f'Done.')
+                    update_str += f" | target: {config.target_energy:.1f}"
+                    update_str += f" | noise std: {std:.2f}"
+                    if t > 0:
+                        num_changed_bits = np.sum(qubo_bits ^ bits_history[-2], axis=-1)
+                        num_changed_bits_mean = np.mean(num_changed_bits)
+                        num_changed_bits_std = np.std(num_changed_bits)
+                        update_str += f" | changed: {num_changed_bits_mean:.2f} ± {num_changed_bits_std:.2f} / {num_spins}"
+                    update_str += debug_text
+                progress_bar.set_description(update_str)
+                
     except KeyboardInterrupt: # allow user to interrupt the simulation
         print(f'Interrupted.')
     print(f'Completed {t+1} iterations.')
