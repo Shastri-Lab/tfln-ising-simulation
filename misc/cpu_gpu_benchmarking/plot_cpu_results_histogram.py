@@ -53,8 +53,8 @@ def plot_results(ref_deltas, blas_deltas):
 
 if __name__ == "__main__":
     # Load results from files
-    ref_deltas = load_results('results/bench_cpu_ref_results.npz')
-    blas_deltas = load_results('results/bench_cpu_blas_results.npz')
+    ref_deltas = load_results('data/bench_cpu_ref_results.npz')
+    blas_deltas = load_results('data/bench_cpu_blas_results.npz')
 
     # Plot the results
     plot_results(ref_deltas, blas_deltas)

@@ -162,7 +162,7 @@ if __name__ == "__main__":
     # sizes = [2**i for i in range(4, 11)]
     results = {
         platform_label: {
-            s: load_results(f'results/{filename_prefix}_results_{s}.npz') for s in sizes
+            s: load_results(f'data/{filename_prefix}_results_{s}.npz') for s in sizes
         } for platform_label, filename_prefix in name_map.items()
     }
 

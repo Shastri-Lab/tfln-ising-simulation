@@ -79,7 +79,7 @@ static void run_one(matvec fn, const char *tag,
 {
     char fn_out[128];
     snprintf(fn_out, sizeof fn_out,
-             "results/cbench_cpu_%s_results_%zu.bin", tag, n);
+             "data/cbench_cpu_%s_results_%zu.bin", tag, n);
 
     double *deltas = xmalloc(reps * sizeof *deltas);
 

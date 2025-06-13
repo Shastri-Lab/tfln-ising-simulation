@@ -40,7 +40,7 @@ def run_benchmarking_test(m, n, repeats=10_000, skip=False):
     y = np.empty(m, dtype=np.float64)
 
     for method, fn in METHODS.items():
-        output_file = f'results/bench_cpu_{method}_results_{n}.npz'
+        output_file = f'data/bench_cpu_{method}_results_{n}.npz'
         if os.path.exists(output_file):
             if skip:
                 print(f"Skipping {method} benchmark, {output_file} already exists.")

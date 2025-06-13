@@ -8,7 +8,7 @@ def run_benchmarking_test(M, N, repeats=10_000, skip=False):
     A = rng.standard_normal((M, N), dtype=cp.float64)
     x = rng.standard_normal(N, dtype=cp.float64)
 
-    output_file=f'results/bench_gpu_cupy_results_{N}.npz'
+    output_file=f'data/bench_gpu_cupy_results_{N}.npz'
     if os.path.exists(output_file):
         if skip:
             print(f'Skipping CuPy benchmark, {output_file} already exists.')
