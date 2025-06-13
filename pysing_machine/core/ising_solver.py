@@ -267,7 +267,7 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
             std = get_annealing_temperature(t, config)
 
             # check if each of the parallel runs have already reached the target energy
-            success = np.logical_or(success, np.abs(current_energy - target_energy) < 1e-5)
+            success = np.logical_or(success, np.abs(current_energy - target_energy) < 1e-5) # TODO: it's really important that the provided target energy is correct!! for the number partitioning, we first scale the set but we forget to scale the target energy, so the energy turns out to be wrong
 
             # break if we are close enough to the target energy
             if config.early_break and np.any(success):
@@ -305,12 +305,11 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
                     update_str += debug_text
                 progress_bar.set_description(update_str)
                 
+                
     except KeyboardInterrupt: # allow user to interrupt the simulation
         print(f'Interrupted.')
     print(f'Completed {t+1} iterations.')
 
-    if config.early_break and config.target_energy and success is None:
-        success = False
     return SolverResults(
         final_vector=x_vector,
         spin_bits_history=bits_history,
