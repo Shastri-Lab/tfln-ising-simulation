@@ -1,0 +1,57 @@
+
+libcpu_ref.so:	file format mach-o arm64
+
+Disassembly of section __TEXT,__text:
+
+00000000000002d0 <_dgemv_ref>:
+     2d0: d10103ff     	sub	sp, sp, #0x40
+     2d4: f9001fe0     	str	x0, [sp, #0x38]
+     2d8: f9001be1     	str	x1, [sp, #0x30]
+     2dc: f90017e2     	str	x2, [sp, #0x28]
+     2e0: f90013e3     	str	x3, [sp, #0x20]
+     2e4: f9000fe4     	str	x4, [sp, #0x18]
+     2e8: f9000bff     	str	xzr, [sp, #0x10]
+     2ec: 14000001     	b	0x2f0 <_dgemv_ref+0x20>
+     2f0: f9400be8     	ldr	x8, [sp, #0x10]
+     2f4: f94013e9     	ldr	x9, [sp, #0x20]
+     2f8: eb090108     	subs	x8, x8, x9
+     2fc: 540004c2     	b.hs	0x394 <_dgemv_ref+0xc4>
+     300: 14000001     	b	0x304 <_dgemv_ref+0x34>
+     304: 2f00e400     	movi	d0, #0000000000000000
+     308: fd0007e0     	str	d0, [sp, #0x8]
+     30c: f90003ff     	str	xzr, [sp]
+     310: 14000001     	b	0x314 <_dgemv_ref+0x44>
+     314: f94003e8     	ldr	x8, [sp]
+     318: f9400fe9     	ldr	x9, [sp, #0x18]
+     31c: eb090108     	subs	x8, x8, x9
+     320: 54000282     	b.hs	0x370 <_dgemv_ref+0xa0>
+     324: 14000001     	b	0x328 <_dgemv_ref+0x58>
+     328: f9401fe8     	ldr	x8, [sp, #0x38]
+     32c: f9400be9     	ldr	x9, [sp, #0x10]
+     330: f9400fea     	ldr	x10, [sp, #0x18]
+     334: 9b0a7d29     	mul	x9, x9, x10
+     338: f94003ea     	ldr	x10, [sp]
+     33c: 8b0a0129     	add	x9, x9, x10
+     340: fc697900     	ldr	d0, [x8, x9, lsl #3]
+     344: f9401be8     	ldr	x8, [sp, #0x30]
+     348: f94003e9     	ldr	x9, [sp]
+     34c: fc697901     	ldr	d1, [x8, x9, lsl #3]
+     350: fd4007e2     	ldr	d2, [sp, #0x8]
+     354: 1f410800     	fmadd	d0, d0, d1, d2
+     358: fd0007e0     	str	d0, [sp, #0x8]
+     35c: 14000001     	b	0x360 <_dgemv_ref+0x90>
+     360: f94003e8     	ldr	x8, [sp]
+     364: 91000508     	add	x8, x8, #0x1
+     368: f90003e8     	str	x8, [sp]
+     36c: 17ffffea     	b	0x314 <_dgemv_ref+0x44>
+     370: fd4007e0     	ldr	d0, [sp, #0x8]
+     374: f94017e8     	ldr	x8, [sp, #0x28]
+     378: f9400be9     	ldr	x9, [sp, #0x10]
+     37c: fc297900     	str	d0, [x8, x9, lsl #3]
+     380: 14000001     	b	0x384 <_dgemv_ref+0xb4>
+     384: f9400be8     	ldr	x8, [sp, #0x10]
+     388: 91000508     	add	x8, x8, #0x1
+     38c: f9000be8     	str	x8, [sp, #0x10]
+     390: 17ffffd8     	b	0x2f0 <_dgemv_ref+0x20>
+     394: 910103ff     	add	sp, sp, #0x40
+     398: d65f03c0     	ret

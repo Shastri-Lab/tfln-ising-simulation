@@ -1,0 +1,33 @@
+
+libcpu_blas.so:	file format mach-o arm64
+
+Disassembly of section __TEXT,__text:
+
+0000000000000420 <_dgemv_blas>:
+     420: d10083ff     	sub	sp, sp, #0x20
+     424: a9017bfd     	stp	x29, x30, [sp, #0x10]
+     428: 910043fd     	add	x29, sp, #0x10
+     42c: aa0403e5     	mov	x5, x4
+     430: aa0103e6     	mov	x6, x1
+     434: aa0003e4     	mov	x4, x0
+     438: 52800028     	mov	w8, #0x1                ; =1
+     43c: b9000be8     	str	w8, [sp, #0x8]
+     440: f90003e2     	str	x2, [sp]
+     444: 1e6e1000     	fmov	d0, #1.00000000
+     448: 2f00e401     	movi	d1, #0000000000000000
+     44c: 52800ca0     	mov	w0, #0x65               ; =101
+     450: 52800de1     	mov	w1, #0x6f               ; =111
+     454: aa0303e2     	mov	x2, x3
+     458: aa0503e3     	mov	x3, x5
+     45c: 52800027     	mov	w7, #0x1                ; =1
+     460: 94000004     	bl	0x470 <_cblas_dgemv$NEWLAPACK+0x470>
+     464: a9417bfd     	ldp	x29, x30, [sp, #0x10]
+     468: 910083ff     	add	sp, sp, #0x20
+     46c: d65f03c0     	ret
+
+Disassembly of section __TEXT,__stubs:
+
+0000000000000470 <__stubs>:
+     470: 90000030     	adrp	x16, 0x4000 <_cblas_dgemv$NEWLAPACK+0x4000>
+     474: f9400210     	ldr	x16, [x16]
+     478: d61f0200     	br	x16
