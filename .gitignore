@@ -8,6 +8,10 @@ todo
 pysing_machine/protein_folding/main.py
 ising_protein_S*
 ising_protein_folding_nayem.py
+# C binaries (misc/cpu_gpu_benchmarking)
+*.so
+*.dylib
+cbench_cpu
 
 # python
 __pycache__
