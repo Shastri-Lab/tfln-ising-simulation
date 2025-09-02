@@ -49,22 +49,6 @@ print(f'total num edges: {num_edges}')
 
 best_g22_cut = 13_359
 
-def cut_value(cut, J):
-    # cut is the results of the spin bits history
-    # it has shape (num_iterations, num_pars, num_ics, num_spins)
-    cut_value = np.zeros((cut.shape[0], cut.shape[1], cut.shape[2])) # one cut value for each set of spins
-    for it in range(cut.shape[0]):
-        for par in range(cut.shape[1]):
-            for ic in range(cut.shape[2]):
-                value = 0
-                for row, i in enumerate(cut[it, par, ic, :]):
-                    for col, j in enumerate(cut[it, par, ic, :]):
-                        if i != j: # only count edges between different partitions
-                            value += J[row][col]
-                cut_value[it, par, ic] = value
-    
-    return cut_value / 2
-
 def cut_graph(
         graph,
         num_iterations=500,
@@ -72,7 +56,6 @@ def cut_graph(
         alphas=None,
         betas=(0.1,),
         noise_std=0.5,
-        simulated_annealing=False,
         early_break=True,
         sparse=False,
         ):
@@ -108,16 +91,11 @@ def cut_graph(
 
     # find index of the minimum energy
     final_energies = results.energy_history[-1, :, :]
-    min_energy_idx_flat = np.argmin(final_energies)
-    min_energy_idx = np.unravel_index(min_energy_idx_flat, final_energies.shape)
-    min_energy = final_energies[min_energy_idx]
-    min_spins = spin_vector[*min_energy_idx, :]
 
 
     fig, ax = plot_energy_convergence(results.energy_history, config, 'Max Cut Energy')
     
     cut = 0.25*np.sum(J) - 0.25*results.energy_history # energy is really 2E?
-    # cut = cut_value(np.array(results.spin_bits_history), J)
     ax2 = ax.twinx()
     ax2.set_ylabel('Cut Value')
 
@@ -142,11 +120,11 @@ def cut_graph(
 if __name__ == '__main__':
     cut_graph(
         G22,
-        num_ics=10,
-        sparse=False, # sparse energy calculation needs optimization; it's about the same speed as dense
-        early_break=True,
-        betas=(0.08, 0.06, 0.04),
-        noise_std=0.5,
-        simulated_annealing=True,
-        num_iterations=1600,
+        num_ics=100,
+        num_iterations=800,
+        sparse=False,
+        early_break=False,
+        alphas=(1.0), #np.logspace(-0.1, 0, 3, endpoint=True),
+        betas=(0.056), #np.logspace(-2, -0.5, 4, endpoint=False),
+        noise_std=1.0,
         )
