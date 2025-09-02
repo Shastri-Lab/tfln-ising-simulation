@@ -11,11 +11,11 @@ if __name__ == '__main__':
         num_ics=1000,
         alphas=(1,), 
         betas=(0.05, 0.1, 0.3),
-        noise_std=0.5,
+        noise_std=0.25,
         early_break=True,
         simulated_annealing=True,
         is_plotting=True,
         is_saving=False,
         make_symmetric=True,
-        sparse=True,
+        sparse=False,
     )

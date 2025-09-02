@@ -212,7 +212,7 @@ class Lattice_HP_QUBO:
         h_dict, J_dict, offset_ising = qubo_to_ising(self.interaction_matrix())
         return h_dict, J_dict, offset_ising
 
-    def show_lattice(self, qubobitstring, axes=None):
+    def show_lattice(self, qubobitstring, axes=None, indices_fontsize=8):
         if axes is None:
             fig, axes = plt.subplots(1, 1, figsize=(8, 8))
 
@@ -265,7 +265,7 @@ class Lattice_HP_QUBO:
             for i in v:
                 t += str(i) + ","
             t = t[:-1]
-            axes.text(k[0]-0.4, k[1]-0.3, t, color='k', fontsize=8, ha='left')
+            axes.text(k[0]-0.4, k[1]-0.3, t, color='k', fontsize=indices_fontsize, ha='left')
 
         # sort xpos and ypos based on fpos
         xpos = np.array([x for _, x in sorted(zip(fpos, xpos), key=lambda a: a[0])])

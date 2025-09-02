@@ -19,5 +19,5 @@ if __name__ == '__main__':
         is_plotting=True,
         is_saving=False,
         make_symmetric=True,
-        sparse=True,
+        sparse=False,
     )

@@ -40,7 +40,7 @@ def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
 
 # def plot_hp_convergence(model, e_history, qubo_bits, alpha_beta, noise_std, target_energy=None):
 def plot_hp_convergence(model, e_history, config, final_state):
-    title = f'{model.name} ({model.seq_to_str()})\n{model.dim[1]}x{model.dim[0]} lattice\nNoise std={config.noise_std}'
+    title = f'{model.name} ({model.seq_to_str()})\n{model.dim[1]}x{model.dim[0]} lattice\nAnnealing Schedule={config.annealing_schedule}'
     fig, ax = plot_energy_convergence(e_history, config, title)
     
     # find index of the minimum energy
@@ -120,6 +120,8 @@ def solve_hp_problem(model, num_iterations=250_000, num_ics=2, alphas=None, beta
         is_save = input('Save results? (y/N): ')
         if is_save.lower() == 'y':
             save_results(model, e_history, bits_history, x_vector, config.alpha_beta, noise_std)
+
+    return results
 
 def solve_hp_problem_gpu(model, num_iterations=250_000, num_ics=2, alphas=None, betas=0.005, noise_std=0.125, is_plotting=False, is_saving=False, early_break=True, skip_energy=False):
     print(f'\nSetting up {model.name} simulation on {model.dim[1]}x{model.dim[0]} lattice...')
