@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 import os.path as path
 import matplotlib.pyplot as plt
-from hp_lattice import Lattice_HP_QUBO
+from hp_lattice import HP_Lattice_Problem
 from dimod.utilities import qubo_to_ising
 
 from pysing_machine.core.ising_solver import (
@@ -29,7 +29,7 @@ def load_hp_model_by_name(name, latdim=(10,10), lambdas=(2.1, 2.4, 3.0)):
     with open(path.join(path.dirname(path.abspath(__file__)), 'protein_sequences.json'), 'r') as f:
         hp_sequences = json.load(f)
     seq = next(filter(lambda x: x['name'] == name, hp_sequences)) # should only be one
-    model = Lattice_HP_QUBO(
+    model = HP_Lattice_Problem(
         name = name,
         dim = latdim,
         sequence = seq['sequence'],

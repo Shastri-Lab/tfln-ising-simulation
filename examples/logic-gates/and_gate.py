@@ -9,7 +9,6 @@ from math import ceil, floor
 from numpy import pi, sin, cos
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
-from hp_lattice import Lattice_HP_QUBO
 from pysing_machine.core.ising_solver import solve_isingmachine
 from dwave.samplers import SimulatedAnnealingSampler
 from pysing_machine.core.utils import (

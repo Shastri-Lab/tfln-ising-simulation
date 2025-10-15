@@ -44,13 +44,13 @@ def h_dict_to_mat(h_dict, idx_vector):
 def save_model_for_matlab(model, filename):
     h_ising, J_ising, offset_ising = model.to_ising()
     L = len(model.sequence)
-    N, M = model.dim
+    N, M = model.lattice_dimensions
     h = h_dict_to_mat(h_ising, model.keys)
     J = J_dict_to_mat(J_ising, model.keys)
     scipy.io.savemat(filename, {
         'h': h, 'J': J,
         'L': L, 'N': N, 'M': M,
-        'lambdas': model.Lambda, # TODO: this is only used for protein folding, should be removed for general case
+        'lambdas': model.lambd, # TODO: this is only used for protein folding, should be removed for general case
         'keys': model.keys, # TODO: this is only used for protein folding, should be removed for general case
         'offset': offset_ising,
         'sequence': model.sequence, # TODO: this is only used for protein folding, should be removed for general case
@@ -60,7 +60,7 @@ def save_model_for_matlab(model, filename):
 def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std):
     data_dir = path.join(path.dirname(path.abspath(__file__)), 'results')
     os.makedirs(data_dir, exist_ok=True) # create the directory if it doesn't exist
-    results_filename = path.join(data_dir, f'{model.name}_{model.dim[1]}x{model.dim[0]}')
+    results_filename = path.join(data_dir, f'{model.name}_{model.lattice_dimensions[1]}x{model.lattice_dimensions[0]}')
     i = 1
     filename = results_filename + '.npz'
     while path.exists(filename):
@@ -87,7 +87,7 @@ def save_results(model, e_history, bits_history, x_vector, alpha_beta, noise_std
         betas=betas,
         sequence=model.sequence, # TODO: this is only used for protein folding, should be removed for general case
         target_energy=model.target_energy, # TODO: this is only used for protein folding, should be removed for general case
-        lambdas=model.Lambda, # TODO: this is only used for protein folding, should be removed for general case
+        lambdas=model.lambd, # TODO: this is only used for protein folding, should be removed for general case
         noise_std=noise_std,
         )
     print('Done.')

@@ -1,248 +1,222 @@
 """
-This file is copied and modified based on the file HP_Lattice_2D.py in Sandipan Mohanty's GitHub repo, found at:
-https://github.com/sandipan-mohanty/DWaveHPLatticeProteins
+This file is derived from the script HP_Lattice_2D.py originally developed by Sandipan Mohanty and collaborators for "Folding lattice proteins with quantum annealing" (Phys. Rev. Research, vol. 4, no. 4, p. 043013, Oct. 2022, doi: 10.1103/PhysRevResearch.4.043013), available at https://github.com/sandipan-mohanty/DWaveHPLatticeProteins
+
+The present version was independently refactored and extended by Hugh Morison and collaborators for related academic work. This code is not affiliated with or endorsed by the original authors. All original rights remain with them.
 """
 import numpy as np
 import networkx as nx
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from dimod.utilities import qubo_to_ising
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+from matplotlib.colors import ListedColormap
 
-def parity(node):
-    return (node[0] % 2 + node[1] % 2) % 2
+class HP_Lattice_Problem:
+    """Class representing the QUBO formulation for HP lattice protein folding."""
 
-def seq_from_str(seqstr):
-    seq = []
-    for c in seqstr:
-        if c == ' ':
-            continue
-        if c == 'H' or c == 'h' or c == '1':
-            seq.append(1)
-        else:
-            seq.append(0)
-    return seq
-
-def seq_to_str(seq_list):
-    seqstr = ""
-    for c in seq_list:
-        if c == 1:
-            seqstr += 'H'
-        else:
-            seqstr += 'P'
-    return seqstr
-
-def E_HP_qubo_contribs(g, sequence):
-    QQ = defaultdict(float)
-    for u, v in g.edges():
-        if parity(u) == 0:
-            ev, od = u, v
-        else:
-            ev, od = v, u
-        for i in range(len(sequence)):
-            for j in range(i + 1, len(sequence)):
-                if (i - j) * (i - j) <= 4:
-                    continue
-                if (i + j) % 2 == 0: 
-                    continue
-                if (sequence[i] == 0 or sequence[j] == 0):
-                    continue; 
-                if (i % 2 == 0):
-                    QQ[((ev, i), (od, j))] += -1
-                else:
-                    QQ[((ev, j), (od, i))] += -1
-
-    return QQ
-
-def constraint_unique_bead_location(g, strength, sequence_length):
-    evenpos = [i for i in range(sequence_length) if i%2 == 0]
-    oddpos = [i for i in range(sequence_length) if i%2 == 1]
-    QQ = defaultdict(float)
-    for i in range(sequence_length):
-        for u in g.nodes():
-            if parity(u) == i % 2:
-                QQ[((u, i), (u, i))] += -strength
-            for v in g.nodes():
-                if u != v and parity(u) == i % 2 and parity(v) == i % 2:
-                    QQ[((u, i), (v, i))] += strength
-
-    return QQ
-
-def constraint_self_avoidance(g, strength, sequence_length):
-    evenpos = [i for i in range(sequence_length) if i%2 == 0]
-    oddpos = [i for i in range(sequence_length) if i%2 == 1]
-    QQ = defaultdict(float)
-    for u in g.nodes():
-        if parity(u) == 0:
-            for x in evenpos:
-                for y in evenpos:
-                    if x < y:
-                        QQ[((u, x), (u, y))] += strength
-        else:
-            for x in oddpos:
-                for y in oddpos:
-                    if x < y:
-                        QQ[((u, x), (u, y))] += strength
-
-    return QQ
-
-def constraint_chain_connectivity(g, strength, sequence_length):
-    evenpos = [i for i in range(sequence_length) if i%2 == 0]
-    oddpos = [i for i in range(sequence_length) if i%2 == 1]
-    QQ = defaultdict(float)
-    for i in evenpos:
-        for u in g.nodes():
-            for v in g.nodes():
-                if u == v or ((u,v) in g.edges()) or ((v,u) in g.edges()):
-                    continue
-                if parity(u) == 0 and parity(v) == 1:
-                    if i != evenpos[-1] or sequence_length % 2 == 0:
-                        QQ[((u, i), (v, i+1))] += strength
-    for i in oddpos:
-        for u in g.nodes():
-            for v in g.nodes():
-                if u == v or ((u,v) in g.edges()) or ((v,u) in g.edges()):
-                    continue
-                if parity(u) == 0 and parity(v) == 1:
-                    if i != oddpos[-1] or sequence_length % 2 == 1:
-                        QQ[((u, i+1), (v, i))] += strength
-    return QQ
-
-class Lattice_HP_QUBO:
-    def __init__(self, dim, sequence, name=None, Lambda=None, target_energy=None, is_printing=True):
-        self.name = "X" if name is None else name
-        self.dim = dim
+    def __init__(self, dim, sequence, name=None, lambd=None, target_energy=None, is_printing=True):
+        self.name = name if name is not None else "unnamed"
+        self.lattice_dimensions = dim
         self.target_energy = target_energy
-        
-        if type(sequence) is str:
-            self.sequence = seq_from_str(sequence)
-        else:
-            self.sequence = sequence
-        self.len_of_seq = len(sequence)
-        if self.len_of_seq > np.prod(dim):
-            raise RuntimeError(f"Lattice too small for sequence of length {self.len_of_seq}")
 
-        if Lambda is None: # Lambda index 0: unique bead positions, 1: self avoidance 2: chain connectivity
-            self.Lambda = [2.0, 3.0, 3.0]
-            if self.len_of_seq >= 40:
-                self.Lambda = [2.0, 3.5, 3.0] # known best values for S48
-            if self.len_of_seq >= 60:
-                self.Lambda = [3.0, 4.0, 4.0] # known best values for S64
-        else:
-            self.Lambda = Lambda
+        self.sequence = self.sequence_from_string(sequence) if isinstance(sequence, str) else sequence
+        self.sequence_length = len(self.sequence)
+        if self.sequence_length > np.prod(dim):
+            raise RuntimeError(f"Lattice too small for sequence of length {self.sequence_length}")
 
-        G = nx.grid_graph(self.dim)
+        if lambd is None: # parameters are best from "Folding Lattice Proteins w/ Quantum Annealing" paper
+            if self.sequence_length >= 60:
+                self.lambd = [3.0, 4.0, 4.0]  # S64
+            elif self.sequence_length >= 40:
+                self.lambd = [2.0, 3.5, 3.0]  # S48
+            else:
+                self.lambd = [2.0, 3.0, 3.0]
+        else:
+            self.lambd = lambd
+
+        square_lattice_graph = nx.grid_graph(self.lattice_dimensions)
+
+        # QUBO matrices
         self.Q = defaultdict(float)
+        self.QHP = self.get_dict_HP_energy(square_lattice_graph, self.sequence)
+        self.Q1 = self.get_dict_unique_location(square_lattice_graph, self.lambd[0], self.sequence_length)
+        self.Q2 = self.get_dict_self_avoidance(square_lattice_graph, self.lambd[1], self.sequence_length)
+        self.Q3 = self.get_dict_chain_connectivity(square_lattice_graph, self.lambd[2], self.sequence_length)
 
-        self.QHP = E_HP_qubo_contribs(G, self.sequence)
-        self.Q1 = constraint_unique_bead_location(G, self.Lambda[0], self.len_of_seq)
-        self.Q2 = constraint_self_avoidance(G, self.Lambda[1], self.len_of_seq)
-        self.Q3 = constraint_chain_connectivity(G, self.Lambda[2], self.len_of_seq)
-        for vpair in self.QHP:
-            self.Q[vpair] += self.QHP[vpair]
-        for vpair in self.Q1:
-            self.Q[vpair] += self.Q1[vpair]
-        for vpair in self.Q2:
-            self.Q[vpair] += self.Q2[vpair]
-        for vpair in self.Q3:
-            self.Q[vpair] += self.Q3[vpair]
-        ukeys = []
-        for k in self.Q:
-            ukeys.append(k[0])
-            ukeys.append(k[1])
-        self.keys = list(sorted(set(ukeys)))
+        # Aggregate all QUBO terms
+        for Q_dict in [self.QHP, self.Q1, self.Q2, self.Q3]:
+            for key, value in Q_dict.items():
+                self.Q[key] += value
+
+        # Collect all unique keys
+        ukeys = [k for pair in self.Q for k in pair]
+        self.keys = sorted(set(ukeys))
+
         if is_printing:
             print(f"Sequence: {self.seq_to_str()}")
-            print(f"Sequence length = {self.len_of_seq}")
-            print(f"Lattice dimensions : {self.dim}")
-            print(f"Bit vector has size {len(self.keys)}, each with {2*len(self.Q)/len(self.keys):.2f} connections on average.")
-            print(f'Q contains elements in {set(self.Q.values())}')
+            print(f"Sequence length: {self.sequence_length}")
+            print(f"Lattice dimensions: {self.lattice_dimensions}")
+            avg_conn = 2 * len(self.Q) / len(self.keys) if self.keys else 0
+            print(f"Bit vector size: {len(self.keys)}, avg. connections: {avg_conn:.2f}")
+            print(f"Q contains values: {set(self.Q.values())}")
 
-    def seq_to_str(self):
-        return seq_to_str(self.sequence)
+    def sequence_from_string(self, seqstr):
+        """Convert a string representation of a sequence to a list of 0/1 values."""
+        return [int(c in 'h1') for c in seqstr.casefold() if not c.isspace()]
+
+    def sequence_to_string(self):
+        """Convert a list of 0/1 values to a string representation (H/P)."""
+        return ''.join('H' if c == 1 else 'P' for c in self.sequence)
+
+    def node_parity(self, node):
+        """Return the parity (checkerboard coloring) of a lattice node."""
+        return (node[0] % 2 + node[1] % 2) % 2
+
+    def get_dict_HP_energy(self, graph, sequence):
+        """Compute QUBO contributions for HP interactions."""
+        Q_dict = defaultdict(float)
+        sequence_len = len(sequence)
+        for u, v in graph.edges():
+            ev, od = (u, v) if self.node_parity(u) == 0 else (v, u)
+            for i in range(sequence_len):
+                for j in range(i + 1, sequence_len):
+                    if abs(i - j) <= 2 or \
+                        (i + j) % 2 == 0 or \
+                            sequence[i] == 0 or \
+                                sequence[j] == 0: 
+                        continue
+                    if i % 2 == 0:
+                        Q_dict[((ev, i), (od, j))] += -1
+                    else:
+                        Q_dict[((ev, j), (od, i))] += -1
+        return Q_dict
+
+    def get_dict_unique_location(self, graph, strength, sequence_length):
+        """Enforce that each bead occupies a unique lattice location."""
+        Q_dict = defaultdict(float)
+        for i in range(sequence_length):
+            parity_i = i % 2
+            for u in graph.nodes():
+                if self.node_parity(u) == parity_i:
+                    Q_dict[((u, i), (u, i))] += -strength
+                    for v in graph.nodes():
+                        if u != v and self.node_parity(v) == parity_i:
+                            Q_dict[((u, i), (v, i))] += strength
+        return Q_dict
+
+    ## TODO: fix this one
+    def get_dict_self_avoidance(self, graph, strength, sequence_length):
+        """Enforce self-avoidance: beads cannot overlap."""
+        Q_dict = defaultdict(float)
+        evenpos = [i for i in range(sequence_length) if i % 2 == 0]
+        oddpos = [i for i in range(sequence_length) if i % 2 == 1]
+        for u in graph.nodes():
+            positions = evenpos if self.node_parity(u) == 0 else oddpos
+            for x in positions:
+                for y in positions:
+                    if x < y:
+                        Q_dict[((u, x), (u, y))] += strength
+        return Q_dict
+
+    def get_dict_chain_connectivity(self, graph, strength, sequence_length):
+        """Enforce chain connectivity: beads must be adjacent in the lattice."""
+        Q_dict = defaultdict(float)
+        last_even = sequence_length - 2 + sequence_length % 2
+        last_odd = sequence_length - 1 - sequence_length % 2
+        for i in range(sequence_length):
+            for u in graph.nodes():
+                for v in graph.nodes():
+                    if u == v or (u, v) in graph.edges() or (v, u) in graph.edges():
+                        continue
+                    if self.node_parity(u) == 0 and self.node_parity(v) == 1:
+                        if i % 2 == 0: # even
+                            if i != last_even or sequence_length % 2 == 0:
+                                Q_dict[((u, i), (v, i + 1))] += strength
+                        else:           # odd
+                            if i != last_odd or sequence_length % 2 == 1:
+                                Q_dict[((u, i + 1), (v, i))] += strength                         
+        return Q_dict
+
 
     def interaction_matrix(self):
+        """Return the full QUBO interaction matrix."""
         return self.Q
 
     def optimization_matrix(self):
+        """Return the QUBO matrix for HP optimization only."""
         return self.QHP
 
     def constraint_matrix_1(self):
+        """Return the QUBO matrix for unique bead location constraint."""
         return self.Q1
-    
+
     def constraint_matrix_2(self):
+        """Return the QUBO matrix for self-avoidance constraint."""
         return self.Q2
-    
+
     def constraint_matrix_3(self):
+        """Return the QUBO matrix for chain connectivity constraint."""
         return self.Q3
 
     def Q_as_np_array(self, Q_dict):
-        Q = np.zeros((len(self.keys), len(self.keys)))
-        for i in range(len(self.keys)):
-            for j in range(len(self.keys)):
-                if (self.keys[i], self.keys[j]) in Q_dict:
-                    Q[i, j] = Q_dict[(self.keys[i], self.keys[j])]
+        """Convert a QUBO dictionary to a numpy array."""
+        n = len(self.keys)
+        Q = np.zeros((n, n))
+        for i, ki in enumerate(self.keys):
+            for j, kj in enumerate(self.keys):
+                Q[i, j] = Q_dict.get((ki, kj), 0.0)
         return Q
 
     def get_energies(self, bits):
-        # print(f'in get_energies: {self.Lambda=}')
-        qhp = 0.
-        q1 = self.Lambda[0] * self.len_of_seq
-        q2 = 0. 
-        q3 = 0.
-
-        for i in range(len(bits)):
-            if bits[i] == 0:
+        """Compute the energy contributions for a given bitstring."""
+        qhp = 0.0
+        q1 = self.lambd[0] * self.sequence_length
+        q2 = 0.0
+        q3 = 0.0
+        for i, bi in enumerate(bits):
+            if not bi:
                 continue
-            for j in range(len(bits)):
-                if bits[j] == 0:
+            for j, bj in enumerate(bits):
+                if not bj:
                     continue
-                qhp += self.QHP[(self.keys[i], self.keys[j])]
-                q1 += self.Q1[(self.keys[i], self.keys[j])]
-                q2 += self.Q2[(self.keys[i], self.keys[j])]
-                q3 += self.Q3[(self.keys[i], self.keys[j])]
+                qhp += self.QHP.get((self.keys[i], self.keys[j]), 0.0)
+                q1 += self.Q1.get((self.keys[i], self.keys[j]), 0.0)
+                q2 += self.Q2.get((self.keys[i], self.keys[j]), 0.0)
+                q3 += self.Q3.get((self.keys[i], self.keys[j]), 0.0)
         return qhp, q1, q2, q3
 
     def print_energies(self, bits):
+        """Print the energy breakdown for a given bitstring."""
         qhp, q1, q2, q3 = self.get_energies(bits)
-        print(f"EHP = {qhp}, E1 = {q1}, E2 = {q2}, E3 = {q3}, E = {qhp + q1 + q2 + q3}")
+        total = qhp + q1 + q2 + q3
+        print(f"EHP = {qhp}, E1 = {q1}, E2 = {q2}, E3 = {q3}, Total E = {total}")
 
     def to_ising(self):
+        """Convert the QUBO interaction matrix to Ising form."""
         h_dict, J_dict, offset_ising = qubo_to_ising(self.interaction_matrix())
         return h_dict, J_dict, offset_ising
 
-    def show_lattice(self, qubobitstring, axes=None, indices_fontsize=8):
+    def show_lattice(self, qubobitstring, axes=None, indices_fontsize=8, colors=None, rotation_angle=None):
+        """Visualize the lattice and the protein configuration."""
         if axes is None:
-            fig, axes = plt.subplots(1, 1, figsize=(8, 8))
+            fig, axes = plt.subplots(figsize=(8, 8))
 
-        # plot checkerboard background for lattice
-        latdim = self.dim
-        image = np.zeros(latdim)
-        for i in range(latdim[0]):
-            for j in range (latdim[1]):
-                image[i,j] = parity([i,j])
-        colors = ["#eaeaea", "#fefefe"]
-        lat_cmap = ListedColormap(colors, name="lat_cmap")
-        row_labels = range(latdim[0])
-        col_labels = range(latdim[1])
-        axes.matshow(image, cmap = lat_cmap)
+        # Checkerboard background
+        lattice_dimensions = self.lattice_dimensions
+        image = np.fromfunction(lambda i, j: self.node_parity([i, j]), lattice_dimensions, dtype=int)
+        checkerboard_cmap = ListedColormap(["#eaeaea", "#fefefe"], name="lat_cmap")
+        axes.matshow(image, cmap=checkerboard_cmap)
         axes.set_xticks([])
         axes.set_yticks([])
         axes.set_xticklabels([])
         axes.set_yticklabels([])
-    
-        # plot the amino acids on the lattice
-        hpcolors = ["#11f033", "#f03311"]
-        hp_cmap = ListedColormap(hpcolors, name="hp_cmap")
-        fpos = []
-        xpos = [] #np.zeros(len(self.sequence))
-        ypos = [] #np.zeros(len(self.sequence))
-        posc = [] #np.zeros(len(self.sequence))
-        xstart = []
-        ystart = []
-        cstart = []
-        text_dict = {}
+
+        # Amino acid colors
+        colors = colors or ["#5878b7", "#cb3676"] # ["#11f033", "#f03311"]
+        hp_cmap = ListedColormap(colors , name="hp_cmap") 
+        fpos, xpos, ypos, posc = [], [], [], []
+        xstart, ystart, cstart = [], [], []
+        text_dict = defaultdict(list)
+
         for i, b in enumerate(qubobitstring):
             if b != 1:
                 continue
@@ -255,22 +229,18 @@ class Lattice_HP_QUBO:
                 xstart.append(s[0])
                 ystart.append(s[1])
                 cstart.append(self.sequence[f])
+            text_dict[(s[0], s[1])].append(f)
 
-            t = text_dict.get((s[0], s[1]), [])
-            t.append(f)
-            text_dict[(s[0], s[1])] = t            
-            
-        for k, v in text_dict.items():
-            t = ""
-            for i in v:
-                t += str(i) + ","
-            t = t[:-1]
-            axes.text(k[0]-0.4, k[1]-0.3, t, color='k', fontsize=indices_fontsize, ha='left')
+        # Annotate lattice positions
+        for (x, y), indices in text_dict.items():
+            label = ",".join(map(str, indices))
+            axes.text(x - 0.4, y - 0.3, label, color='k', fontsize=indices_fontsize, ha='left')
 
-        # sort xpos and ypos based on fpos
-        xpos = np.array([x for _, x in sorted(zip(fpos, xpos), key=lambda a: a[0])])
-        ypos = np.array([y for _, y in sorted(zip(fpos, ypos), key=lambda a: a[0])])
-        posc = np.array([p for _, p in sorted(zip(fpos, posc), key=lambda a: a[0])])
+        # Sort positions by sequence index
+        sorted_indices = np.argsort(fpos)
+        xpos = np.array(xpos)[sorted_indices]
+        ypos = np.array(ypos)[sorted_indices]
+        posc = np.array(posc)[sorted_indices]
 
         axes.plot(xpos, ypos, 'k-', lw=0.5)
         axes.scatter(xpos, ypos, s=100, c=posc, cmap=hp_cmap, alpha=0.5)
