@@ -294,7 +294,7 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
                 _, _, min_qubo_bits = find_min_energy_index(current_energy, qubo_bits)
                 update_str = f"energy: {current_energy.min():.1f}"
 
-            if config.target_energy:
+                if config.target_energy:
                     update_str += f" | target: {config.target_energy:.1f}"
                     update_str += f" | noise std: {std:.2f}"
                     if t > 0:
@@ -302,7 +302,6 @@ def solve_isingmachine(problem: IsingProblem, config: SolverConfig):
                         num_changed_bits_mean = np.mean(num_changed_bits)
                         num_changed_bits_std = np.std(num_changed_bits)
                         update_str += f" | changed: {num_changed_bits_mean:.2f} ± {num_changed_bits_std:.2f} / {num_spins}"
-                    update_str += debug_text
                 progress_bar.set_description(update_str)
                 
                 
